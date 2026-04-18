@@ -1,0 +1,16 @@
+name: AstraLogicGates
+version: '${version}'
+
+main: pl.dawcou.AstraLogicGates.LogicGates
+api-version: '1.21'
+load: POSTWORLD
+commands:
+  bramka:
+    description: Komenda do stawiania bramek logicznych
+    usage: /bramka <typ>
+    aliases: [gate, logicgate, bramkalogiczna]
+
+permissions:
+  AstraLogicGates.bramki:
+    description: Pozwala używać komendy /bramka
+    default: op
