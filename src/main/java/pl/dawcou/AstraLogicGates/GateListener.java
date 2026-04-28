@@ -4,55 +4,94 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
 
 public class GateListener implements Listener {
 
-    private final LogicGates plugin;
+    private final AstraLogicGates plugin;
     private final GateManager manager;
-    private final java.util.Map<java.util.UUID, String> editingPlayers = new java.util.HashMap<>();
+    private final Map<UUID, String> editingPlayers = new HashMap<>();
 
-    public GateListener(LogicGates plugin, GateManager manager) {
+    public GateListener(AstraLogicGates plugin, GateManager manager) {
         this.plugin = plugin;
         this.manager = manager;
     }
 
     @EventHandler
     public void onBreak(BlockBreakEvent e) {
-        String path = "gates." + manager.locToStr(e.getBlock().getLocation());
+        Block brokenBlock = e.getBlock();
+        String locStr = GateUtils.locToStr(e.getBlock().getLocation());
+        String path = "gates." + locStr;
         FileConfiguration cfg = plugin.getGatesConfig();
 
         if (cfg.contains(path)) {
-            String type = cfg.getString(path + ".type");
-            BlockFace out = BlockFace.valueOf(cfg.getString(path + ".out"));
-            Block target = e.getBlock().getRelative(out);
+            String type = cfg.getString(path + ".type", "UNKNOWN");
+            String outStr = cfg.getString(path + ".out");
+            if (outStr == null) return;
 
-            // Sprzątanie boków synchronizatora
-            if (type.equals("SYNCHRONIZER")) {
-                String sL = cfg.getString(path + ".sideL");
-                String sR = cfg.getString(path + ".sideR");
-                if (sL != null) {
-                    manager.strToLoc(sL).getBlock().setType(Material.AIR);
-                    manager.strToLoc(sL).getBlock().getRelative(out).setType(Material.AIR);
-                }
-                if (sR != null) {
-                    manager.strToLoc(sR).getBlock().setType(Material.AIR);
-                    manager.strToLoc(sR).getBlock().getRelative(out).setType(Material.AIR);
+            // 1. CZYSZCZENIE LINKU BEZPRZEWODOWEGO
+            String targetStr = cfg.getString(path + ".target_link");
+            if (targetStr != null && !targetStr.isEmpty()) {
+                Location targetLoc = GateUtils.strToLoc(targetStr);
+                if (targetLoc != null) {
+                    // Wysyłamy 0 do zlinkowanej bramki, żeby ją "odświeżyć"
+                    plugin.getGateManager().sendDataToGate(targetLoc.getBlock(), 0, brokenBlock);
                 }
             }
 
-            manager.updateOutput(path, target, false);
+            BlockFace out = BlockFace.valueOf(outStr);
+            Block target = e.getBlock().getRelative(out);
 
-            // Drop przedmiotu
-            org.bukkit.inventory.ItemStack item = new org.bukkit.inventory.ItemStack(e.getBlock().getType());
-            org.bukkit.inventory.meta.ItemMeta meta = item.getItemMeta();
+            if ("SYNCHRONIZER".equals(type)) {
+                String sL = cfg.getString(path + ".sideL");
+                String sR = cfg.getString(path + ".sideR");
+                if (sL != null) {
+                    Location lLoc = GateUtils.strToLoc(sL);
+                    if (lLoc != null) {
+                        lLoc.getBlock().setType(Material.AIR);
+                        lLoc.getBlock().getRelative(out).setType(Material.AIR);
+                    }
+                }
+                if (sR != null) {
+                    Location rLoc = GateUtils.strToLoc(sR);
+                    if (rLoc != null) {
+                        rLoc.getBlock().setType(Material.AIR);
+                        rLoc.getBlock().getRelative(out).setType(Material.AIR);
+                    }
+                }
+            }
+
+            ConfigurationSection gatesSection = cfg.getConfigurationSection("gates");
+            if (gatesSection != null) {
+                for (String key : gatesSection.getKeys(false)) {
+                    String gatePath = "gates." + key;
+                    String link = cfg.getString(gatePath + ".target_link");
+                    if (locStr.equals(link)) {
+                        cfg.set(gatePath + ".target_link", null);
+                    }
+                }
+            }
+
+            GateUtils.updateOutput(plugin, path, target, false);
+
+            ItemStack item = new ItemStack(e.getBlock().getType());
+            ItemMeta meta = item.getItemMeta();
             if (meta != null) {
                 meta.setDisplayName("§eBramka: §6" + type.toUpperCase());
                 item.setItemMeta(meta);
@@ -63,30 +102,37 @@ public class GateListener implements Listener {
             plugin.saveGates();
 
             e.setDropItems(false);
-            e.getPlayer().sendMessage(LogicGates.PREFIX + " §cBramka §6" + type + " §czostała usunięta!");
+            e.getPlayer().sendMessage(plugin.getLanguageManager().getWithPrefix("gate-removed", "{TYPE}", type));
         }
     }
 
     @EventHandler
     public void onPowerBlockBreak(BlockBreakEvent e) {
-        // Jeśli gracz niszczy blok redstone
         if (e.getBlock().getType() == Material.REDSTONE_BLOCK) {
-            // Sprawdzamy wszystkie bramki w configu, czy któraś z nich nie używa tego bloku pod swoim wyjściem
-            org.bukkit.configuration.ConfigurationSection gates = plugin.getGatesConfig().getConfigurationSection("gates");
+            ConfigurationSection gates = plugin.getGatesConfig().getConfigurationSection("gates");
             if (gates == null) return;
 
             for (String key : gates.getKeys(false)) {
-                Location gateLoc = manager.strToLoc(key);
+                Location gateLoc = GateUtils.strToLoc(key);
                 if (gateLoc == null) continue;
 
                 String path = "gates." + key;
-                BlockFace out = BlockFace.valueOf(plugin.getGatesConfig().getString(path + ".out"));
-                // Wyjście (target) to tam gdzie jest dymek, a blok zasilający jest POD nim
+                String outStr = plugin.getGatesConfig().getString(path + ".out");
+                if (outStr == null) continue;
+
+                BlockFace out = BlockFace.valueOf(outStr);
                 Block powerBlock = gateLoc.getBlock().getRelative(out).getRelative(BlockFace.DOWN);
 
-                if (e.getBlock().getLocation().equals(powerBlock.getLocation())) {
+                Location blockLoc = e.getBlock().getLocation();
+                Location powerLoc = powerBlock.getLocation();
+
+                if (blockLoc.getBlockX() == powerLoc.getBlockX() &&
+                        blockLoc.getBlockY() == powerLoc.getBlockY() &&
+                        blockLoc.getBlockZ() == powerLoc.getBlockZ() &&
+                        blockLoc.getWorld() != null && blockLoc.getWorld().equals(powerLoc.getWorld())) {
+
                     e.setCancelled(true);
-                    e.getPlayer().sendMessage(LogicGates.PREFIX + " §cTo jest blok zasilający wyjście bramki, nie możesz go zniszczyć!");
+                    e.getPlayer().sendMessage(plugin.getLanguageManager().getWithPrefix("power-block-break-deny"));
                     return;
                 }
             }
@@ -94,29 +140,30 @@ public class GateListener implements Listener {
     }
 
     @EventHandler
-    public void onPlace(org.bukkit.event.block.BlockPlaceEvent e) {
-        org.bukkit.inventory.ItemStack item = e.getItemInHand();
-        if (item == null || !item.hasItemMeta() || !item.getItemMeta().hasDisplayName()) return;
+    public void onPlace(BlockPlaceEvent e) {
+        ItemStack item = e.getItemInHand();
+        if (!item.hasItemMeta()) return;
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null || !meta.hasDisplayName()) return;
 
         if (!GateManager.ALLOWED_BRAMKI.contains(e.getBlock().getType())) return;
 
-        String name = item.getItemMeta().getDisplayName();
+        String name = meta.getDisplayName();
         if (name.startsWith("§eBramka: §6")) {
             String type = name.replace("§eBramka: §6", "").toUpperCase();
             Block block = e.getBlock();
-            String path = "gates." + manager.locToStr(block.getLocation());
-            BlockFace outFace = manager.getDirection(e.getPlayer());
+            String path = "gates." + GateUtils.locToStr(block.getLocation());
+            BlockFace outFace = GateUtils.getDirection(e.getPlayer());
 
-            org.bukkit.configuration.file.FileConfiguration cfg = plugin.getGatesConfig();
+            FileConfiguration cfg = plugin.getGatesConfig();
 
             cfg.set(path + ".type", type);
             cfg.set(path + ".out", outFace.name());
             cfg.set(path + ".state", false);
 
-            // --- LOGIKA DLA SYNCHRONIZATORA (Fizyczne boki) ---
-            if (type.equals("SYNCHRONIZER")) {
-                BlockFace left = manager.rotate90(manager.rotate90(manager.rotate90(outFace)));
-                BlockFace right = manager.rotate90(outFace);
+            if ("SYNCHRONIZER".equals(type)) {
+                BlockFace left = GateUtils.rotate90(GateUtils.rotate90(GateUtils.rotate90(outFace)));
+                BlockFace right = GateUtils.rotate90(outFace);
 
                 Block leftSide = block.getRelative(left);
                 Block rightSide = block.getRelative(right);
@@ -124,21 +171,40 @@ public class GateListener implements Listener {
                 leftSide.setType(block.getType());
                 rightSide.setType(block.getType());
 
-                cfg.set(path + ".sideL", manager.locToStr(leftSide.getLocation()));
-                cfg.set(path + ".sideR", manager.locToStr(rightSide.getLocation()));
+                cfg.set(path + ".sideL", GateUtils.locToStr(leftSide.getLocation()));
+                cfg.set(path + ".sideR", GateUtils.locToStr(rightSide.getLocation()));
                 cfg.set(path + ".direction", outFace.name());
             }
 
-            // --- CZYTANIE LORE (Parametry) ---
-            if (item.getItemMeta().hasLore()) {
-                for (String line : item.getItemMeta().getLore()) {
+            if ("VARIABLE_GATE".equals(type)) {
+                cfg.set(path + ".value", 0);
+                cfg.set(path + ".last_back", false);
+            } else if ("BOOLEAN_GATE".equals(type)) {
+                cfg.set(path + ".last_back", false);
+            } else if ("MATH".equals(type)) {
+                cfg.set(path + ".value", 0);
+                cfg.set(path + ".val_left", 0);
+                cfg.set(path + ".val_right", 0);
+                cfg.set(path + ".target_link", null);
+            }
+
+            if (meta.hasLore() && meta.getLore() != null) {
+                for (String line : meta.getLore()) {
                     if (line.contains("Kanał: ")) {
-                        String chan = line.replace("§7Kanał: §f", "").trim();
-                        cfg.set(path + ".channel", chan);
+                        cfg.set(path + ".channel", line.replace("§7Kanał: §f", "").trim());
+                    }
+                    else if (line.contains("Wartość: ")) {
+                        int val = Integer.parseInt(line.replace("§7Wartość: §f", "").trim());
+                        if ("NUMBER_GATE".equals(type)) cfg.set(path + ".value", val);
+                        else if ("DECODER".equals(type)) cfg.set(path + ".target", val);
+                    }
+                    else if (line.contains("Tryb: ")) {
+                        String rawMode = line.replace("§7Tryb: §f", "").trim();
+                        if ("MATH".equals(type)) cfg.set(path + ".mode", rawMode.equalsIgnoreCase("Subtract") ? "SUB" : "ADD");
+                        else if ("COMPARATOR".equals(type)) cfg.set(path + ".mode", rawMode);
                     }
                     else if (line.contains("Limit: ")) {
-                        int limit = Integer.parseInt(line.replace("§7Limit: §f", ""));
-                        cfg.set(path + ".score_limit", limit);
+                        cfg.set(path + ".score_limit", Integer.parseInt(line.replace("§7Limit: §f", "")));
                         cfg.set(path + ".count", 0);
                     }
                     else if (line.contains("Zasięg: ")) {
@@ -146,30 +212,25 @@ public class GateListener implements Listener {
                     }
                     else if (line.contains("Czas: ")) {
                         String timeStr = line.replace("§7Czas: §f", "");
-                        int ticks = timeStr.endsWith("s") ?
-                                (int)(Double.parseDouble(timeStr.replace("s", "")) * 20) :
-                                Integer.parseInt(timeStr.replace("t", ""));
+                        int ticks = timeStr.endsWith("s") ? (int)(Double.parseDouble(timeStr.replace("s", "")) * 20) : Integer.parseInt(timeStr.replace("t", ""));
                         cfg.set(path + ".interval", ticks);
                         cfg.set(path + ".next_tick", 0);
                     }
                 }
             } else {
-                // DOMYŚLNE WARTOŚCI
                 if (type.matches("CLOCK|CLOCK_GATE|REPEATER")) {
                     cfg.set(path + ".interval", 20);
                     cfg.set(path + ".next_tick", 0);
-                }
-                if (type.equals("COUNTER")) {
+                } else if ("COUNTER".equals(type)) {
                     cfg.set(path + ".score_limit", 10);
                     cfg.set(path + ".count", 0);
-                }
-                if (type.equals("SENSOR")) {
+                } else if ("SENSOR".equals(type)) {
                     cfg.set(path + ".interval", 5);
                 }
             }
 
             plugin.saveGates();
-            e.getPlayer().sendMessage(LogicGates.PREFIX + " §aPostawiono bramkę §e" + type + " §6Wyjście: §e" + outFace);
+            e.getPlayer().sendMessage(plugin.getLanguageManager().getWithPrefix("gate-placed", "{TYPE}", type).replace("{OUT}", outFace.name()));
         }
     }
 
@@ -179,111 +240,74 @@ public class GateListener implements Listener {
         Block block = e.getClickedBlock();
         if (block == null) return;
 
-        String path = "gates." + manager.locToStr(block.getLocation());
+        String path = "gates." + GateUtils.locToStr(block.getLocation());
         if (!plugin.getGatesConfig().contains(path)) return;
 
-        String type = plugin.getGatesConfig().getString(path + ".type");
+        String type = plugin.getGatesConfig().getString(path + ".type", "");
         Player p = e.getPlayer();
 
-        if (type.matches("COUNTER|CLOCK|CLOCK_GATE|REPEATER")) {
+        if (type.matches("COUNTER|CLOCK|CLOCK_GATE|REPEATER|SENSOR")) {
             editingPlayers.put(p.getUniqueId(), path);
-
             p.sendMessage("");
-            p.sendMessage(LogicGates.PREFIX + " §aWszedłeś w tryb edycji bramki §e" + type);
-            if (type.equals("COUNTER")) {
-                int current = plugin.getGatesConfig().getInt(path + ".score_limit");
-                p.sendMessage("§7Wpisz na czacie: §6limit: <liczba 1-100> §7(Obecnie: " + current + ")");
-            }
-            else if (type.equals("SENSOR")) {
-                int current = plugin.getGatesConfig().getInt(path + ".interval");
-                p.sendMessage("§7Wpisz na czacie: §6zasięg: <liczba 1-15> §7(Obecnie: " + current + ")");
+            p.sendMessage(plugin.getLanguageManager().getWithPrefix("edit-mode-start", "{TYPE}", type));
+
+            if ("COUNTER".equals(type)) {
+                p.sendMessage(plugin.getLanguageManager().getMessage("edit-limit-info").replace("{CURRENT}", String.valueOf(plugin.getGatesConfig().getInt(path + ".score_limit"))));
+            } else if ("SENSOR".equals(type)) {
+                p.sendMessage(plugin.getLanguageManager().getMessage("edit-range-info").replace("{CURRENT}", String.valueOf(plugin.getGatesConfig().getInt(path + ".interval"))));
             } else {
-                int current = plugin.getGatesConfig().getInt(path + ".interval");
-                p.sendMessage("§7Wpisz na czacie: §6czas: <liczba>s §7lub §6<liczba>t");
+                p.sendMessage(plugin.getLanguageManager().getMessage("edit-time-info"));
             }
-            p.sendMessage("§7Wpisz §6anuluj§7, aby wyjść bez zmian.");
+            p.sendMessage(plugin.getLanguageManager().getMessage("edit-cancel-info"));
             p.sendMessage("");
             e.setCancelled(true);
         }
     }
 
     @EventHandler
-    public void onPlayerChat(org.bukkit.event.player.AsyncPlayerChatEvent e) {
+    public void onChat(AsyncPlayerChatEvent e) {
         Player p = e.getPlayer();
         if (!editingPlayers.containsKey(p.getUniqueId())) return;
 
         String path = editingPlayers.get(p.getUniqueId());
         String msg = e.getMessage().toLowerCase();
+        e.setCancelled(true);
 
-        // Wyjście z trybu edycji
-        if (msg.equalsIgnoreCase("anuluj")) {
+        if ("anuluj".equals(msg)) {
             editingPlayers.remove(p.getUniqueId());
-            p.sendMessage(LogicGates.PREFIX + " §cEdycja anulowana.");
-            e.setCancelled(true);
+            p.sendMessage(plugin.getLanguageManager().getWithPrefix("edit-cancelled"));
             return;
         }
 
-        // Edycja LICZNIKA
-        if (msg.startsWith("limit: ")) {
-            try {
+        try {
+            if (msg.startsWith("limit: ")) {
                 int val = Integer.parseInt(msg.replace("limit: ", "").trim());
                 if (val >= 1 && val <= 100) {
                     plugin.getGatesConfig().set(path + ".score_limit", val);
-                    plugin.saveGates();
-                    p.sendMessage(LogicGates.PREFIX + " §aUstawiono limit na: §e" + val);
+                    p.sendMessage(plugin.getLanguageManager().getWithPrefix("limit-set", "{VAL}", String.valueOf(val)));
                     editingPlayers.remove(p.getUniqueId());
-                } else {
-                    p.sendMessage(LogicGates.PREFIX + " §cLimit musi być w przedziale 1-100!");
-                }
-            } catch (NumberFormatException ex) {
-                p.sendMessage(LogicGates.PREFIX + " §cBłędny format! Użyj: limit: <liczba>");
-            }
-            e.setCancelled(true);
-        }
-
-        // Edycja ZASIĘGU (Sensor)
-        if (msg.startsWith("zasięg: ")) {
-            String valStr = msg.replace("zasięg: ", "").trim();
-            // Sprawdzamy czy to liczba bez try-catch
-            if (valStr.matches("-?\\d+")) {
-                int val = Integer.parseInt(valStr);
+                } else p.sendMessage(plugin.getLanguageManager().getWithPrefix("limit-range-error"));
+            } else if (msg.startsWith("zasięg: ")) {
+                int val = Integer.parseInt(msg.replace("zasięg: ", "").trim());
                 if (val >= 1 && val <= 15) {
                     plugin.getGatesConfig().set(path + ".interval", val);
-                    plugin.saveGates();
-                    p.sendMessage(LogicGates.PREFIX + " §aUstawiono zasięg na: §e" + val + " bloków");
+                    p.sendMessage(plugin.getLanguageManager().getWithPrefix("range-set", "{VAL}", String.valueOf(val)));
                     editingPlayers.remove(p.getUniqueId());
-                } else {
-                    p.sendMessage(LogicGates.PREFIX + " §cZasięg musi być w przedziale 1-15!");
-                }
-            } else {
-                p.sendMessage(LogicGates.PREFIX + " §cBłędny format! Użyj: zasięg: <liczba>");
-            }
-            e.setCancelled(true);
-        }
-
-        // Edycja CZASU
-        else if (msg.startsWith("czas: ")) {
-            String valStr = msg.replace("czas: ", "").trim();
-            int interval = 20;
-            try {
-                if (valStr.endsWith("s")) {
-                    interval = (int) (Double.parseDouble(valStr.replace("s", "")) * 20);
-                } else if (valStr.endsWith("t")) {
-                    interval = Integer.parseInt(valStr.replace("t", ""));
-                } else {
-                    p.sendMessage(LogicGates.PREFIX + " §cDodaj 's' (sekundy) lub 't' (ticki)!");
-                    e.setCancelled(true);
-                    return;
-                }
+                } else p.sendMessage(plugin.getLanguageManager().getWithPrefix("range-range-error"));
+            } else if (msg.startsWith("czas: ")) {
+                String valStr = msg.replace("czas: ", "").trim();
+                int interval;
+                if (valStr.endsWith("s")) interval = (int) (Double.parseDouble(valStr.replace("s", "")) * 20);
+                else if (valStr.endsWith("t")) interval = Integer.parseInt(valStr.replace("t", ""));
+                else { p.sendMessage(plugin.getLanguageManager().getWithPrefix("time-unit-error")); return; }
 
                 plugin.getGatesConfig().set(path + ".interval", interval);
-                plugin.saveGates();
-                p.sendMessage(LogicGates.PREFIX + " §aUstawiono czas na: §e" + interval + "t");
+                p.sendMessage(plugin.getLanguageManager().getWithPrefix("time-set", "{VAL}", String.valueOf(interval)));
                 editingPlayers.remove(p.getUniqueId());
-            } catch (NumberFormatException ex) {
-                p.sendMessage(LogicGates.PREFIX + " §cBłędny format czasu!");
             }
-            e.setCancelled(true);
+            plugin.saveGates();
+        } catch (NumberFormatException ex) {
+            p.sendMessage(plugin.getLanguageManager().getWithPrefix("limit-format-error"));
         }
     }
 }

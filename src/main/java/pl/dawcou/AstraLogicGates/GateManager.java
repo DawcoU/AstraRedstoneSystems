@@ -1,22 +1,25 @@
 package pl.dawcou.AstraLogicGates;
 
-import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
+import org.bukkit.scheduler.BukkitTask;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 
 public class GateManager {
 
-    private final LogicGates plugin;
+    private final AstraLogicGates plugin;
     private int globalTickCounter = 0;
     private final Random random = new Random();
+    private final Set<String> dataProcessedInThisTick = new HashSet<>();
+    private final Set<String> sendGuard = new HashSet<>();
+    private final Map<String, BukkitTask> repeaterTasks = new HashMap<>();
 
     public static final List<Material> ALLOWED_BRAMKI = Arrays.asList(
             Material.RED_CONCRETE, Material.ORANGE_CONCRETE, Material.YELLOW_CONCRETE,
@@ -27,269 +30,408 @@ public class GateManager {
             Material.GOLD_BLOCK, Material.EMERALD_BLOCK, Material.LAPIS_BLOCK
     );
 
-    public GateManager(LogicGates plugin) { this.plugin = plugin; }
+    public GateManager(AstraLogicGates plugin) { this.plugin = plugin; }
 
     public void checkGates() {
+        dataProcessedInThisTick.clear();
         globalTickCounter++;
         boolean isActionTick = (globalTickCounter % 2 == 0);
         FileConfiguration config = plugin.getGatesConfig();
-        if (config.getConfigurationSection("gates") == null) return;
 
-        for (String key : config.getConfigurationSection("gates").getKeys(false)) {
+        ConfigurationSection gatesSection = config.getConfigurationSection("gates");
+        if (gatesSection == null) return;
+
+        for (String key : gatesSection.getKeys(false)) {
             String path = "gates." + key;
-            Location loc = strToLoc(key);
+            Location loc = GateUtils.strToLoc(key);
 
             if (loc == null || !ALLOWED_BRAMKI.contains(loc.getBlock().getType())) continue;
 
             Block gate = loc.getBlock();
-            String type = config.getString(path + ".type");
+            String type = config.getString(path + ".type", "");
+            String op = config.getString(path + ".mode", "");
 
-            // --- BLOKADA BEZPIECZEŃSTWA (Walidacja Configu) ---
-            if (type.equals("COUNTER")) {
+            // ... (walidacja typów: COUNTER, NUMBER_GATE, COMPARATOR, SENSOR, CLOCK...)
+            if ("COUNTER".equals(type)) {
                 int limit = config.getInt(path + ".score_limit");
-                if (limit < 1 || limit > 100) continue; // Błąd w configu? Bramka stoi, ale nie działa.
-            }
-            else if (type.equals("SENSOR")) {
+
+                if (limit < 1 || limit > 100) continue;
+
+            } else if ("NUMBER_GATE".equals(type)) {
+                int value = config.getInt(path + ".value");
+
+                if (value < 0) continue;
+
+            } else if ("COMPARATOR".equals(type)) {
+                if (op == null || op.isEmpty()) continue;
+
+                if (!op.equals(">")
+                        && !op.equals("<")
+                        && !op.equals("==")
+                        && !op.equals("!=")
+                        && !op.equals(">=")
+                        && !op.equals("<=")) continue;
+
+            } else if ("SENSOR".equals(type)) {
                 int radius = config.getInt(path + ".interval");
+
                 if (radius < 1 || radius > 15) continue;
-            }
-            else if (type.matches("CLOCK|CLOCK_GATE|REPEATER")) {
+
+            } else if ("CLOCK".equals(type) || "CLOCK_GATE".equals(type)) {
                 int interval = config.getInt(path + ".interval");
-                // 5t (min) do 200t (10s max)
+
                 if (interval < 5 || interval > 200) continue;
+
+            } else if ("REPEATER".equals(type)) {
+                int interval = config.getInt(path + ".interval");
+
+                if (interval < 1 || interval > 200) continue;
+
+            } else if ("SENDER".equals(type) || "RECEIVER".equals(type)) {
+                String channel = config.getString(path + ".channel");
+
+                if (channel == null || channel.isEmpty()) continue;
             }
 
-            BlockFace out = BlockFace.valueOf(config.getString(path + ".out"));
+            String outRaw = config.getString(path + ".out");
+            if (outRaw == null) continue;
+            BlockFace out = BlockFace.valueOf(outRaw);
             Block target = gate.getRelative(out);
             BlockFace back = out.getOppositeFace();
-            BlockFace s1 = rotate90(out);
+            BlockFace s1 = GateUtils.rotate90(out);
             BlockFace s2 = s1.getOppositeFace();
 
-            // 1. POBIERZ AKTUALNY STAN (Podstawa, żeby nic nie migało)
             boolean currentState = config.getBoolean(path + ".state", false);
 
-            // --- RENDEROWANIE CZĄSTECZEK (Co tick - stabilnie) ---
-            // Jeśli typ NIE JEST synchronizerem, to spawnuj cząsteczki
-            if (!type.equals("SYNCHRONIZER")) {
-                spawnStatusParticle(gate, out, currentState);
+            if (!("SYNCHRONIZER".equals(type) || "SENDER".equals(type))) {
+                GateUtils.spawnStatusParticle(gate, out, currentState);
             }
 
-            if (type.equals("COUNTER")) {
-                BlockFace left = rotate90(rotate90(rotate90(out)));
-                BlockFace right = rotate90(out);
-                spawnStatusParticle(gate, back, getPowerAt(gate.getRelative(back)) > 0);
-                spawnStatusParticle(gate, left, getPowerAt(gate.getRelative(left)) > 0);
-                spawnStatusParticle(gate, right, getPowerAt(gate.getRelative(right)) > 0);
-            } else {
-                if (type.matches("AND|NAND|XOR|XNOR|LATCH|NIMPLY")) {
-                    spawnStatusParticle(gate, s1, getPowerAt(gate.getRelative(s1)) > 0);
-                    spawnStatusParticle(gate, s2, getPowerAt(gate.getRelative(s2)) > 0);
-                }
-                if (type.matches("NOT|OR|NOR|CLOCK_GATE|REPEATER|BOOSTER|TFF|RANDOM|DLATCH|NIMPLY|SENDER")) {
-                    spawnStatusParticle(gate, back, getPowerAt(gate.getRelative(back)) > 0);
-                }
+            // ... (Particle i logika BOOSTER, SENDER, RECEIVER, SENSOR, SYNCHRONIZER, CLOCK/REPEATER, COUNTER, NUMBER_GATE, BOOLEAN_GATE - bez zmian)
+            if (type.matches("OR|NOR|AND|NAND|XOR|XNOR|LATCH|NIMPLY|COUNTER|MEMORY_CELL|MEMORY_READ|COMPARATOR|MATH|LINKER")) {
+                GateUtils.spawnStatusParticle(gate, s1, GateUtils.getPowerAt(gate.getRelative(s1)) > 0);
+                GateUtils.spawnStatusParticle(gate, s2, GateUtils.getPowerAt(gate.getRelative(s2)) > 0);
             }
-
-            // 2. LOGIKA NATYCHMIASTOWA (1 tick - Booster, Wireless, Clocks)
-            if (type.equals("BOOSTER")) {
-                boolean p = getPowerAt(gate.getRelative(back)) > 0;
+            if (type.matches("NOT|OR|NOR|CLOCK_GATE|REPEATER|BOOSTER|TFF|RANDOM|NIMPLY|COUNTER|SENDER|MEMORY_CELL|MEMORY_READ|NUMBER_GATE|BOOLEAN_GATE|VARIABLE_GATE")) {
+                GateUtils.spawnStatusParticle(gate, back, GateUtils.getPowerAt(gate.getRelative(back)) > 0);
+            }
+            if ("BOOSTER".equals(type)) {
+                boolean p = GateUtils.getPowerAt(gate.getRelative(back)) > 0;
                 if (p != currentState) {
-                    updateOutput(path, target, p);
+                    GateUtils.updateOutput(plugin, path, target, p);
                     config.set(path + ".state", p);
                 }
                 continue;
             }
-
-            if (type.equals("SENDER")) {
+            if ("SENDER".equals(type)) {
                 String rawChannels = config.getString(path + ".channel", "default");
-                boolean hasPower = getPowerAt(gate.getRelative(back)) > 0;
-
+                boolean hasPower = GateUtils.getPowerAt(gate.getRelative(back)) > 0;
                 String[] splitChannels = rawChannels.split(",");
                 boolean hasListener = false;
-
                 for (String chan : splitChannels) {
                     String trimmed = chan.trim();
                     config.set("channels." + trimmed, hasPower);
-
-                    // Sprawdzamy, czy jakikolwiek odbiornik słucha tego kanału
-                    if (config.getBoolean("active_channels." + trimmed, false)) {
-                        hasListener = true;
-                    }
-
-                    // CZYŚCIMY status słuchacza po sprawdzeniu (żeby w następnym ticku musiał się odświeżyć)
+                    if (config.getBoolean("active_channels." + trimmed, false)) hasListener = true;
                     config.set("active_channels." + trimmed, null);
                 }
-
-                // Dymek z przodu świeci TYLKO gdy: jest prąd I jest przynajmniej jeden odbiornik
                 boolean isTransmitting = hasPower && hasListener;
-
-                spawnStatusParticle(gate, out, isTransmitting); // Przód (Antena)
-                spawnStatusParticle(gate, back, hasPower);      // Tył (Zasilanie)
-
-                config.set(path + ".state", false); // Fizyczne wyjście OFF
+                GateUtils.spawnStatusParticle(gate, out, isTransmitting);
+                GateUtils.spawnStatusParticle(gate, back, hasPower);
+                config.set(path + ".state", false);
                 continue;
             }
-
-            if (type.equals("RECEIVER")) {
-                // Pobieramy kanał i od razu wywalamy przecinki oraz spacje (na wypadek gdyby gracz coś namieszał)
+            if ("RECEIVER".equals(type)) {
                 String channel = config.getString(path + ".channel", "default").replace(",", "").replace(" ", "");
-
                 config.set("active_channels." + channel, true);
-
-                // Sprawdzamy stan tego konkretnego kanału w chmurze
                 boolean remotePower = config.getBoolean("channels." + channel, false);
-
                 if (remotePower != currentState) {
-                    updateOutput(path, target, remotePower);
+                    GateUtils.updateOutput(plugin, path, target, remotePower);
                     config.set(path + ".state", remotePower);
                 }
                 continue;
             }
-
-            if (type.equals("SENSOR")) {
-                // Pobieramy promień z configu (domyślnie 5 bloków)
+            if ("SENSOR".equals(type)) {
                 int radius = config.getInt(path + ".interval", 5);
                 boolean found = false;
-
-                // Szukamy graczy w sześcianie wokół bramki
-                for (org.bukkit.entity.Entity entity : gate.getWorld().getNearbyEntities(gate.getLocation(), radius, radius, radius)) {
-                    if (entity instanceof org.bukkit.entity.Player) {
-                        found = true;
-                        break;
-                    }
+                for (Entity entity : gate.getWorld().getNearbyEntities(gate.getLocation(), radius, radius, radius)) {
+                    if (entity instanceof Player) { found = true; break; }
                 }
-
-                // Aktualizacja stanu tylko gdy ktoś wejdzie lub wyjdzie z zasięgu
                 if (found != currentState) {
-                    updateOutput(path, target, found);
+                    GateUtils.updateOutput(plugin, path, target, found);
                     config.set(path + ".state", found);
                 }
-
                 continue;
             }
-
-            // SEKCJA 1-TICKOWA (Dla bramek wymagających natychmiastowej reakcji)
-            if (type.equals("SYNCHRONIZER")) {
-                BlockFace left = rotate90(rotate90(rotate90(out)));
-                BlockFace right = rotate90(out);
-
-                // 1. Sprawdzamy wejścia (za blokami bocznymi)
-                boolean pA = getPowerAt(gate.getRelative(left).getRelative(back)) > 0;
-                boolean pB = getPowerAt(gate.getRelative(right).getRelative(back)) > 0;
-
-                // 2. Logika SYNC
+            if ("SYNCHRONIZER".equals(type)) {
+                BlockFace left = GateUtils.rotate90(GateUtils.rotate90(GateUtils.rotate90(out)));
+                BlockFace right = GateUtils.rotate90(out);
+                boolean pA = GateUtils.getPowerAt(gate.getRelative(left).getRelative(back)) > 0;
+                boolean pB = GateUtils.getPowerAt(gate.getRelative(right).getRelative(back)) > 0;
                 boolean ready = pA && pB;
-
-                // 3. Aktualizacja dwóch wyjść (tylko jeśli stan się zmienił!)
-
                 if (ready != currentState) {
-                    updateOutput(path + "_L", gate.getRelative(left).getRelative(out), ready);
-                    updateOutput(path + "_R", gate.getRelative(right).getRelative(out), ready);
+                    GateUtils.updateOutput(plugin, path + "_L", gate.getRelative(left).getRelative(out), ready);
+                    GateUtils.updateOutput(plugin, path + "_R", gate.getRelative(right).getRelative(out), ready);
                     config.set(path + ".state", ready);
                 }
-
-                // 4. Dymki (TYLKO na bocznych modułach)
-
-                // Tyły (Wejścia) - informują czy sygnał A i B dotarł
-                spawnStatusParticle(gate.getRelative(left), back, pA);
-                spawnStatusParticle(gate.getRelative(right), back, pB);
-
-                // Przody (Wyjścia) - informują czy brama puściła sygnały dalej
-                spawnStatusParticle(gate.getRelative(left), out, ready);
-                spawnStatusParticle(gate.getRelative(right), out, ready);
-
-                continue; // Przejdź do następnej bramki
+                GateUtils.spawnStatusParticle(gate.getRelative(left), back, pA);
+                GateUtils.spawnStatusParticle(gate.getRelative(right), back, pB);
+                GateUtils.spawnStatusParticle(gate.getRelative(left), out, ready);
+                GateUtils.spawnStatusParticle(gate.getRelative(right), out, ready);
+                continue;
             }
-
             if (type.matches("CLOCK|CLOCK_GATE|REPEATER")) {
                 int interval = config.getInt(path + ".interval", 20);
-                boolean hasPower = getPowerAt(gate.getRelative(back)) > 0;
-
-                if (type.equals("REPEATER")) {
-                    int timer = config.getInt(path + ".next_tick", 0);
-                    if (hasPower) {
-                        if (!currentState) {
-                            timer++;
-                            if (timer >= interval) { updateOutput(path, target, true); config.set(path + ".state", true); timer = 0; }
-                            config.set(path + ".next_tick", timer);
-                        }
-                    } else {
-                        if (currentState) { updateOutput(path, target, false); config.set(path + ".state", false); }
-                        config.set(path + ".next_tick", 0);
+                boolean hasPower = GateUtils.getPowerAt(gate.getRelative(back)) > 0;
+                if ("REPEATER".equals(type)) {
+                    boolean in = GateUtils.getPowerAt(gate.getRelative(back)) > 0;
+                    if (in != config.getBoolean(path + ".last_in", false)) {
+                        config.set(path + ".last_in", in);
+                        BukkitTask oldTask = repeaterTasks.get(path);
+                        if (oldTask != null) { oldTask.cancel(); repeaterTasks.remove(path); }
+                        int delay = config.getInt(path + ".interval", 20);
+                        BukkitTask task = plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                            config.set(path + ".state", in);
+                            GateUtils.updateOutput(plugin, path, target, in);
+                            repeaterTasks.remove(path);
+                        }, delay);
+                        repeaterTasks.put(path, task);
                     }
+                    continue;
+                }
+                boolean enabled = !"CLOCK_GATE".equals(type) || hasPower;
+                if (!enabled) {
+                    if (currentState) { GateUtils.updateOutput(plugin, path, target, false); config.set(path + ".state", false); }
+                    config.set(path + ".next_tick", 0);
                 } else {
-                    boolean enabled = !type.equals("CLOCK_GATE") || hasPower;
-                    if (!enabled) {
-                        if (currentState) { updateOutput(path, target, false); config.set(path + ".state", false); }
-                        config.set(path + ".next_tick", 0);
-                    } else {
-                        int nt = config.getInt(path + ".next_tick") + 1;
-                        if (nt >= interval) {
-                            boolean newState = !currentState;
-                            updateOutput(path, target, newState);
-                            config.set(path + ".state", newState);
-                            nt = 0;
-                        }
-                        config.set(path + ".next_tick", nt);
+                    int nt = config.getInt(path + ".next_tick") + 1;
+                    if (nt >= interval) {
+                        boolean newState = !currentState;
+                        GateUtils.updateOutput(plugin, path, target, newState);
+                        config.set(path + ".state", newState);
+                        nt = 0;
                     }
+                    config.set(path + ".next_tick", nt);
                 }
                 continue;
             }
-
-            if (type.equals("COUNTER")) {
-                BlockFace right = rotate90(out);
-                BlockFace left = rotate90(rotate90(rotate90(out)));
-                boolean pB = getPowerAt(gate.getRelative(back)) > 0, pL = getPowerAt(gate.getRelative(left)) > 0, pR = getPowerAt(gate.getRelative(right)) > 0;
-                int count = config.getInt(path + ".count"), limit = config.getInt(path + ".score_limit");
-                boolean lB = config.getBoolean(path + ".last_back"), lL = config.getBoolean(path + ".last_left"), lR = config.getBoolean(path + ".last_right");
+            if ("COUNTER".equals(type)) {
+                BlockFace right = GateUtils.rotate90(out);
+                BlockFace left = GateUtils.rotate90(GateUtils.rotate90(GateUtils.rotate90(out)));
+                int incomingVal = config.getInt(path + ".val_left", 0);
+                int lastVal = config.getInt(path + ".last_val_left", 0);
+                int count = config.getInt(path + ".count");
+                int limit = config.getInt(path + ".score_limit");
                 boolean changed = false;
-
+                if (incomingVal > lastVal) {
+                    int diff = incomingVal - lastVal;
+                    count = Math.min(limit, count + diff);
+                    changed = true;
+                }
+                config.set(path + ".last_val_left", incomingVal);
+                if (dataProcessedInThisTick.contains(path)) {
+                    config.set(path + ".last_back", GateUtils.getPowerAt(gate.getRelative(back)) > 0);
+                    config.set(path + ".last_left", GateUtils.getPowerAt(gate.getRelative(left)) > 0);
+                    config.set(path + ".last_right", GateUtils.getPowerAt(gate.getRelative(right)) > 0);
+                    continue;
+                }
+                boolean pB = GateUtils.getPowerAt(gate.getRelative(back)) > 0, pL = GateUtils.getPowerAt(gate.getRelative(left)) > 0, pR = GateUtils.getPowerAt(gate.getRelative(right)) > 0;
+                boolean lB = config.getBoolean(path + ".last_back"), lL = config.getBoolean(path + ".last_left"), lR = config.getBoolean(path + ".last_right");
                 if (pB && !lB && count < limit) { count++; changed = true; }
                 if (pL && !lL && count > 0) { count--; changed = true; }
                 if (pR && !lR) { count = 0; changed = true; }
-
                 config.set(path + ".last_back", pB); config.set(path + ".last_left", pL); config.set(path + ".last_right", pR);
                 if (changed) {
                     config.set(path + ".count", count);
                     boolean finalState = (count >= limit);
-                    updateOutput(path, target, finalState);
+                    GateUtils.updateOutput(plugin, path, target, finalState);
                     config.set(path + ".state", finalState);
                 }
                 continue;
             }
-
-            // 3. LOGIKA ZWYKŁA (Obliczana co 2 ticki, ale stan trzymany co tick)
-            if (isActionTick) {
-                boolean nextState = currentState;
-
-                if (type.matches("NOT|OR|NOR")) {
-                    boolean p = isInputPowered(gate, out);
-                    // NOT odwraca (nie p), OR podaje dalej (p), NOR odwraca sumę (nie p)
-                    nextState = type.equals("NOT") ? !p : (type.equals("OR") ? p : !p);
-                } else if (type.matches("AND|NAND|XOR|XNOR")) {
-                    boolean p1 = getPowerAt(gate.getRelative(s1)) > 0;
-                    boolean p2 = getPowerAt(gate.getRelative(s2)) > 0;
-
-                    if (type.equals("AND")) nextState = (p1 && p2);
-                    else if (type.equals("NAND")) nextState = !(p1 && p2);
-                    else if (type.equals("XOR")) nextState = (p1 ^ p2);
-                    else if (type.equals("XNOR")) nextState = (p1 == p2);
-                } else if (type.equals("LATCH")) {
-                    boolean s = getPowerAt(gate.getRelative(s1)) > 0, r = getPowerAt(gate.getRelative(s2)) > 0;
-                    if (s) nextState = true; else if (r) nextState = false;
-                } else if (type.equals("TFF") || type.equals("RANDOM")) {
-                    boolean in = getPowerAt(gate.getRelative(back)) > 0;
-                    if (in && !config.getBoolean(path + ".lastInput")) {
-                        nextState = type.equals("TFF") ? !currentState : random.nextBoolean();
+            if ("NUMBER_GATE".equals(type)) {
+                boolean pB = GateUtils.getPowerAt(gate.getRelative(back)) > 0;
+                boolean lB = config.getBoolean(path + ".last_back");
+                if (config.getBoolean(path + ".state") != pB) {
+                    GateUtils.updateOutput(plugin, path, target, pB);
+                    config.set(path + ".state", pB);
+                }
+                if (pB != lB) {
+                    int valueToSend = pB ? config.getInt(path + ".value") : 0;
+                    String linkStr = config.getString(path + ".target_link");
+                    if (linkStr != null) {
+                        Location targetLoc = GateUtils.strToLoc(linkStr);
+                        if (targetLoc != null) sendDataToGate(targetLoc.getBlock(), valueToSend, gate);
+                    } else {
+                        sendDataToGate(gate.getRelative(out), valueToSend, gate);
                     }
-                    config.set(path + ".lastInput", in);
-                } else if (type.equals("NIMPLY")) {
-                    nextState = getPowerAt(gate.getRelative(back)) > 0 && !(getPowerAt(gate.getRelative(s1)) > 0 || getPowerAt(gate.getRelative(s2)) > 0);
+                }
+                config.set(path + ".last_back", pB);
+                continue;
+            }
+            if ("BOOLEAN_GATE".equals(type)) {
+                boolean pB = GateUtils.getPowerAt(gate.getRelative(back)) > 0;
+                boolean lB = config.getBoolean(path + ".last_back");
+                if (pB != lB) {
+                    String link = config.getString(path + ".target_link");
+                    if (link != null) {
+                        Location targetLoc = GateUtils.strToLoc(link);
+                        if (targetLoc != null) sendDataToGate(targetLoc.getBlock(), pB ? 1 : 0, gate);
+                    }
+                    GateUtils.updateOutput(plugin, path, target, pB);
+                    config.set(path + ".state", pB);
+                    config.set(path + ".last_back", pB);
+                }
+                continue;
+            }
+
+            // 🔥 FIX: VARIABLE_GATE LOGIC
+            if ("VARIABLE_GATE".equals(type)) {
+                // Synchronizacja bufora wejściowego
+                if (config.contains(path + ".val_left")) {
+                    int incoming = config.getInt(path + ".val_left");
+                    config.set(path + ".value", incoming);
+                    config.set(path + ".val_left", null);
                 }
 
-                // AKTUALIZACJA TYLKO PRZY ZMIANIE (Klucz do braku migania)
+                int storedValue = config.getInt(path + ".value", 0);
+                boolean shouldBeOn = (storedValue > 0);
+
+                // Aktualizacja bloku, jeśli stan się nie zgadza
+                if (config.getBoolean(path + ".state") != shouldBeOn) {
+                    GateUtils.updateOutput(plugin, path, target, shouldBeOn);
+                    config.set(path + ".state", shouldBeOn);
+
+                    // Jeśli wartość się zmieniła w tym ticku, wysyłamy ją dalej (zabezpieczenie)
+                    if (!dataProcessedInThisTick.contains(path)) {
+                        dataProcessedInThisTick.add(path);
+                        sendDataToGate(target, storedValue, gate);
+
+                        String link = config.getString(path + ".target_link");
+                        if (link != null) {
+                            Location targetLoc = GateUtils.strToLoc(link);
+                            if (targetLoc != null) sendDataToGate(targetLoc.getBlock(), storedValue, gate);
+                        }
+                    }
+                }
+
+                // Zapisujemy tylko ostatni stan wejścia back dla cząsteczek, ale nie blokujemy nim wysyłki
+                config.set(path + ".last_back", GateUtils.getPowerAt(gate.getRelative(back)) > 0);
+                continue;
+            }
+
+            // ... (Reszta typów MATH, COMPARATOR, LINKER, etc. - bez zmian)
+            if ("MATH".equals(type)) {
+                int vL = config.getInt(path + ".val_left", 0);
+                int vR = config.getInt(path + ".val_right", 0);
+                String m = config.getString(path + ".mode", "ADD");
+
+                int result = "SUB".equals(m) ? Math.max(0, vL - vR) : vL + vR;
+                int lastResult = config.getInt(path + ".value", -1);
+                if (result != lastResult) {
+                    config.set(path + ".value", result);
+                    GateUtils.updateOutput(plugin, path, target, result > 0);
+                    String tLink = config.getString(path + ".target_link");
+                    if (tLink != null && !tLink.isEmpty()) {
+                        Location linkLoc = GateUtils.strToLoc(tLink);
+                        if (linkLoc != null) sendDataToGate(linkLoc.getBlock(), result, gate);
+                    }
+                    sendDataToGate(target, result, gate);
+                }
+                continue;
+            }
+            if ("COMPARATOR".equals(type)) {
+                int vL = config.getInt(path + ".val_left", 0);
+                int vR = config.getInt(path + ".val_right", 0);
+                String m = config.getString(path + ".mode", "==");
+                boolean result = switch (m) {
+                    case ">" -> vL > vR;
+                    case "<" -> vL < vR;
+                    case "==" -> vL == vR;
+                    case ">=" -> vL >= vR;
+                    case "<=" -> vL <= vR;
+                    case "!=" -> vL != vR;
+                    default -> false;
+                };
+                boolean lastState = config.getBoolean(path + ".state", false);
+                if (result != lastState) {
+                    config.set(path + ".state", result);
+                    GateUtils.updateOutput(plugin, path, target, result);
+                    sendDataToGate(target, result ? 1 : 0, gate);
+                    String tLink = config.getString(path + ".target_link");
+                    if (tLink != null && !tLink.isEmpty()) {
+                        Location linkLoc = GateUtils.strToLoc(tLink);
+                        if (linkLoc != null) sendDataToGate(linkLoc.getBlock(), result ? 1 : 0, gate);
+                    }
+                }
+                continue;
+            }
+            if ("DECODER".equals(type)) {
+                boolean state = config.getBoolean(path + ".state", false);
+                GateUtils.updateOutput(plugin, path, gate.getRelative(out), state);
+                continue;
+            }
+            if ("LINKER".equals(type)) {
+                Block sideR = gate.getRelative(s1);
+                int vL = config.getInt(path + ".val_left", 0);
+                int vR = GateUtils.getPowerAt(sideR);
+                int result = (vR > 0) ? 0 : vL;
+                int lastResult = config.getInt(path + ".value", -1);
+                if (result != lastResult) {
+                    config.set(path + ".value", result);
+                    config.set(path + ".state", result > 0);
+                    GateUtils.updateOutput(plugin, path, target, result > 0);
+                    sendDataToGate(target, result, gate);
+                    String tLink = config.getString(path + ".target_link");
+                    if (tLink != null && !tLink.isEmpty()) {
+                        Location linkLoc = GateUtils.strToLoc(tLink);
+                        if (linkLoc != null) sendDataToGate(linkLoc.getBlock(), result, gate);
+                    }
+                }
+                continue;
+            }
+
+            if (isActionTick) {
+                boolean nextState = currentState;
+                if (type.matches("NOT|OR|NOR")) {
+                    boolean p = GateUtils.isInputPowered(gate, out);
+                    nextState = "NOT".equals(type) ? !p : ("OR".equals(type) == p);
+                } else if (type.matches("AND|NAND|XOR|XNOR")) {
+                    boolean p1 = GateUtils.getPowerAt(gate.getRelative(s1)) > 0;
+                    boolean p2 = GateUtils.getPowerAt(gate.getRelative(s2)) > 0;
+                    if ("AND".equals(type)) nextState = (p1 && p2);
+                    else if ("NAND".equals(type)) nextState = !(p1 && p2);
+                    else if ("XOR".equals(type)) nextState = (p1 ^ p2);
+                    else if ("XNOR".equals(type)) nextState = (p1 == p2);
+                } else if ("LATCH".equals(type)) {
+                    boolean s = GateUtils.getPowerAt(gate.getRelative(s1)) > 0, r = GateUtils.getPowerAt(gate.getRelative(s2)) > 0;
+                    if (s) nextState = true; else if (r) nextState = false;
+                } else if ("MEMORY_CELL".equals(type)) {
+                    BlockFace right = GateUtils.rotate90(out);
+                    BlockFace left = GateUtils.rotate90(GateUtils.rotate90(GateUtils.rotate90(out)));
+                    boolean dataIn = GateUtils.getPowerAt(gate.getRelative(back)) > 0;
+                    boolean saveIn = GateUtils.getPowerAt(gate.getRelative(right)) > 0;
+                    boolean resetIn = GateUtils.getPowerAt(gate.getRelative(left)) > 0;
+                    boolean stored = config.getBoolean(path + ".stored_state", false);
+                    if (saveIn && dataIn) { stored = true; config.set(path + ".stored_state", true); }
+                    if (resetIn) { stored = false; config.set(path + ".stored_state", false); }
+                    nextState = stored;
+                } else if ("MEMORY_READ".equals(type)) {
+                    BlockFace right = GateUtils.rotate90(out);
+                    BlockFace left = GateUtils.rotate90(GateUtils.rotate90(GateUtils.rotate90(out)));
+                    boolean signalFromBack = GateUtils.getPowerAt(gate.getRelative(back)) > 0;
+                    boolean readIn = GateUtils.getPowerAt(gate.getRelative(right)) > 0 || GateUtils.getPowerAt(gate.getRelative(left)) > 0;
+                    nextState = (signalFromBack && readIn);
+                } else if ("TFF".equals(type) || "RANDOM".equals(type)) {
+                    boolean in = GateUtils.getPowerAt(gate.getRelative(back)) > 0;
+                    if (in && !config.getBoolean(path + ".lastInput")) {
+                        nextState = "TFF".equals(type) ? !currentState : random.nextBoolean();
+                    }
+                    config.set(path + ".lastInput", in);
+                } else if ("NIMPLY".equals(type)) {
+                    nextState = GateUtils.getPowerAt(gate.getRelative(back)) > 0 && !(GateUtils.getPowerAt(gate.getRelative(s1)) > 0 || GateUtils.getPowerAt(gate.getRelative(s2)) > 0);
+                }
                 if (nextState != currentState) {
-                    updateOutput(path, target, nextState);
+                    GateUtils.updateOutput(plugin, path, target, nextState);
                     config.set(path + ".state", nextState);
                 }
             }
@@ -297,110 +439,102 @@ public class GateManager {
         plugin.saveGates();
     }
 
-    public void updateOutput(String path, Block target, boolean p) {
-        FileConfiguration c = plugin.getGatesConfig();
-        // Celujemy w blok bezpośrednio pod wyjściem (target)
-        Block powerBlock = target.getRelative(BlockFace.DOWN);
+    public void sendDataToGate(Block target, int value, Block from) {
+        FileConfiguration cfg = plugin.getGatesConfig();
+        if (target == null || from == null || target.equals(from)) return;
 
-        if (p) {
-            // Stawiamy blok redstone pod spodem, jeśli go tam jeszcze nie ma
-            if (powerBlock.getType() != Material.REDSTONE_BLOCK) {
-                c.set(path + ".oldMat", powerBlock.getType().name());
-                c.set(path + ".oldData", powerBlock.getBlockData().getAsString());
+        String path = "gates." + GateUtils.locToStr(target.getLocation());
+        if (!cfg.contains(path)) return;
 
-                powerBlock.setType(Material.REDSTONE_BLOCK);
-                plugin.saveGates();
-            }
-        } else if (powerBlock.getType() == Material.REDSTONE_BLOCK) {
-            // Przywracamy poprzedni materiał bloku pod spodem
-            String matName = c.getString(path + ".oldMat", "AIR");
-            String d = c.getString(path + ".oldData");
+        String targetType = cfg.getString(path + ".type");
+        if (targetType == null) return;
+        if (!sendGuard.add(path)) return;
 
-            try {
-                powerBlock.setType(Material.valueOf(matName));
-                if (d != null) powerBlock.setBlockData(Bukkit.createBlockData(d));
-            } catch (Exception e) {
-                powerBlock.setType(Material.AIR);
-            }
-
-            c.set(path + ".oldMat", null);
-            c.set(path + ".oldData", null);
-            plugin.saveGates();
-        }
-    }
-
-    public int getPowerAt(Block b) {
-        if (b == null || b.getType() == Material.AIR || b.getType() == Material.CAVE_AIR || b.getType() == Material.VOID_AIR) {
-            return 0;
-        }
-
-        Material type = b.getType();
-
-        // 1. Kable (Redstone Wire) - pobieramy realną moc (0-15)
-        if (type == Material.REDSTONE_WIRE) {
-            return ((org.bukkit.block.data.type.RedstoneWire) b.getBlockData()).getPower();
-        }
-
-        // 2. Blok redstone - zawsze max power
-        if (type == Material.REDSTONE_BLOCK) {
-            return 15;
-        }
-
-        // 3. Pochodnie (ścienne i zwykłe) - sprawdzamy czy się świecą
-        if (type == Material.REDSTONE_TORCH || type == Material.REDSTONE_WALL_TORCH) {
-            if (b.getBlockData() instanceof org.bukkit.block.data.Lightable torch) {
-                return torch.isLit() ? 15 : 0;
-            }
-        }
-
-        // 4. Reszta (Dźwignie, guziki, repeatery, komparatory itp.)
-        return b.getBlockPower();
-    }
-
-    private boolean isInputPowered(Block g, BlockFace out) {
-        // Sprawdzamy tylko boki, tył i górę.
-        // Wywalamy DOWN (żeby nie brało prądu z ziemi) i out (żeby nie brało z własnego wyjścia).
-        for (BlockFace f : new BlockFace[]{BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST, BlockFace.WEST, BlockFace.UP}) {
-
-            // Jeśli ta strona to nasze wyjście, ignorujemy ją całkowicie!
-            if (f == out) continue;
-
-            // Sprawdzamy sygnał na pozostałych ścianach
-            if (getPowerAt(g.getRelative(f)) > 0) return true;
-        }
-        return false;
-    }
-
-    public BlockFace rotate90(BlockFace f) {
-        return switch (f) { case NORTH -> BlockFace.EAST; case EAST -> BlockFace.SOUTH; case SOUTH -> BlockFace.WEST; case WEST -> BlockFace.NORTH; default -> BlockFace.EAST; };
-    }
-
-    public BlockFace getDirection(Player p) {
-        float y = p.getLocation().getYaw();
-        if (y < 0) y += 360;
-        if (y >= 315 || y < 45) return BlockFace.SOUTH;
-        if (y >= 45 && y < 135) return BlockFace.WEST;
-        if (y >= 135 && y < 225) return BlockFace.NORTH;
-        return BlockFace.EAST;
-    }
-
-    public String locToStr(Location l) { return l.getWorld().getName() + "," + l.getBlockX() + "," + l.getBlockY() + "," + l.getBlockZ(); }
-    public Location strToLoc(String s) {
         try {
-            String[] p = s.split(",");
-            return new Location(Bukkit.getWorld(p[0]), Integer.parseInt(p[1]), Integer.parseInt(p[2]), Integer.parseInt(p[3]));
-        } catch (Exception e) { return null; }
-    }
+            String outStr = cfg.getString(path + ".out");
+            if (outStr == null) return;
+            BlockFace targetOut = BlockFace.valueOf(outStr);
+            Block finalOutputBlock = target.getRelative(targetOut);
 
-    private void spawnStatusParticle(Block gate, BlockFace face, boolean active) {
-        Location loc = gate.getLocation().add(0.5, 0.5, 0.5);
-        loc.add(face.getDirection().multiply(0.51));
+            // ... (Logika MATH, COUNTER - bez zmian)
+            if ("MATH".equals(targetType)) {
+                BlockFace left = GateUtils.rotate90(GateUtils.rotate90(GateUtils.rotate90(targetOut)));
+                Block leftBlock = target.getRelative(left);
+                Block rightBlock = target.getRelative(GateUtils.rotate90(targetOut));
+                if (from.equals(leftBlock)) cfg.set(path + ".val_left", value);
+                else if (from.equals(rightBlock)) cfg.set(path + ".val_right", value);
+            }
+            if ("COUNTER".equals(targetType)) {
+                int currentCount = cfg.getInt(path + ".count");
+                int limit = cfg.getInt(path + ".score_limit");
+                BlockFace left = GateUtils.rotate90(GateUtils.rotate90(GateUtils.rotate90(targetOut)));
+                int newCount = from.getLocation().equals(target.getRelative(left).getLocation()) ? Math.max(0, currentCount - value) : Math.min(limit, currentCount + value);
+                cfg.set(path + ".count", newCount);
+                boolean finalState = (newCount >= limit);
+                GateUtils.updateOutput(plugin, path, finalOutputBlock, finalState);
+                cfg.set(path + ".state", finalState);
+                sendDataToGate(finalOutputBlock, newCount, target);
+            }
 
-        // Zmieniamy rozmiar z 1.0F na 1.2F (delikatnie większe)
-        org.bukkit.Particle.DustOptions dust = active ?
-                new org.bukkit.Particle.DustOptions(org.bukkit.Color.LIME, 1.3F) :
-                new org.bukkit.Particle.DustOptions(org.bukkit.Color.RED, 1.3F);
+            // 🔥 FIX: VARIABLE_GATE SEND DATA
+            if ("VARIABLE_GATE".equals(targetType)) {
+                // 1. Natychmiast zapisujemy wartość i stan
+                cfg.set(path + ".value", value);
+                boolean finalState = (value > 0);
+                cfg.set(path + ".state", finalState);
+                GateUtils.updateOutput(plugin, path, finalOutputBlock, finalState);
 
-        gate.getWorld().spawnParticle(org.bukkit.Particle.DUST, loc, 1, 0, 0, 0, 0, dust);
+                // 2. NATYCHMIASTOWA WYSYŁKA DALEJ (bez czekania na cokolwiek)
+                // Fizycznie przed siebie:
+                sendDataToGate(finalOutputBlock, value, target);
+
+                // I przez link bezprzewodowy:
+                String link = cfg.getString(path + ".target_link");
+                if (link != null && !link.isEmpty()) {
+                    Location targetLoc = GateUtils.strToLoc(link);
+                    if (targetLoc != null) {
+                        sendDataToGate(targetLoc.getBlock(), value, target);
+                    }
+                }
+            }
+
+            // ... (Reszta COMPARATOR, DECODER, LINKER - bez zmian)
+            if ("COMPARATOR".equals(targetType)) {
+                BlockFace left = GateUtils.rotate90(GateUtils.rotate90(GateUtils.rotate90(targetOut)));
+                if (from.getLocation().equals(target.getRelative(left).getLocation())) cfg.set(path + ".val_left", value);
+                else cfg.set(path + ".val_right", value);
+            }
+            if ("DECODER".equals(targetType)) {
+                int targetDigit = cfg.getInt(path + ".target", 0);
+                boolean result = (value == targetDigit);
+                cfg.set(path + ".state", result);
+                GateUtils.updateOutput(plugin, path, finalOutputBlock, result);
+                String linkLocStr = cfg.getString(path + ".target_link");
+                if (linkLocStr != null && !linkLocStr.isEmpty()) {
+                    Location linkLoc = GateUtils.strToLoc(linkLocStr);
+                    if (linkLoc != null) sendDataToGate(linkLoc.getBlock(), result ? 1 : 0, target);
+                }
+                sendDataToGate(finalOutputBlock, result ? 1 : 0, target);
+            }
+            if ("LINKER".equals(targetType)) {
+                BlockFace outFace = BlockFace.valueOf(outStr);
+                BlockFace leftFace = GateUtils.rotate90(GateUtils.rotate90(GateUtils.rotate90(outFace)));
+                Block sideL = target.getRelative(leftFace);
+                boolean isWirelessTarget = false;
+                String currentLocStr = GateUtils.locToStr(target.getLocation());
+                String senderPath = "gates." + GateUtils.locToStr(from.getLocation());
+                if (cfg.contains(senderPath + ".target_link") && currentLocStr.equals(cfg.getString(senderPath + ".target_link"))) isWirelessTarget = true;
+                if ((from.getX() == sideL.getX() && from.getZ() == sideL.getZ()) || isWirelessTarget) cfg.set(path + ".val_left", value);
+                int vL = cfg.getInt(path + ".val_left", 0);
+                int vR = GateUtils.getPowerAt(target.getRelative(GateUtils.rotate90(outFace)));
+                int result = (vR > 0) ? 0 : vL;
+                cfg.set(path + ".value", result);
+                cfg.set(path + ".state", result > 0);
+                GateUtils.updateOutput(plugin, path, finalOutputBlock, result > 0);
+                sendDataToGate(finalOutputBlock, result, target);
+            }
+        } finally {
+            sendGuard.remove(path);
+        }
     }
 }

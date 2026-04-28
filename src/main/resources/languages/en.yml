@@ -1,0 +1,67 @@
+# #############################################################
+# #                                                           #
+# #                AstraLogicGates - Language File            #
+# #                   Language: English (EN)                  #
+# #                                                           #
+# #############################################################
+
+# You can use color codes (e.g., &a, &c, &l) and placeholders like %time%, %player%, %min%.
+messages:
+  no-permission: "&cYou don't have permission!"
+  reload-success: "&aConfiguration reloaded successfully!"
+  usage-gate-command: "&cUsage: §6/gate <Category> <Type> <Parameter"
+
+  # Messages from /bramka command
+  need-channel: "&cYou must specify a channel! <channel1,channel2...>"
+  provide-limit: "&cPlease specify a limit (1-100)!"
+  provide-value: "&cPlease specify a value!"
+  provide-mode: "&cPlease specify a mode! <ADD/SUB>"
+  provide-sign: "&cEnter a sign! (>, <, ==, !=, >=, <=)"
+  invalid-sign: "&cThis is not a valid mathematical operator!"
+  not-a-number: "&cThis is not a number!"
+  limit-range: "&cThe limit must be in the range 1-100!"
+  provide-range: "&cPlease specify a range (1-15)!"
+  range-out-of-bounds: "&cThe range must be in the range 1-15!"
+  provide-time: "&cPlease specify a time (5t-10s)!"
+  provide-delay: "&cProvide delay (1t-10s)!"
+  provide-unit: "&cPlease specify a unit: &e't' &7(ticks) or &e's' &7(seconds)!"
+  invalid-time-format: "&cEnter a valid time (e.g., 10s)!"
+  ticks-range: "&cTime in ticks must be between 5t and 200t (10s)!"
+  ticks-range-reapeter: "&cTime in ticks must be between 1t and 200t (10s)!"
+  seconds-range: "&cTime in seconds must be between 1s and 10s!"
+
+  # Messages from linker
+  link-no-block: "§cYou must be looking at a block!"
+  link-not-gate: "§cThis block is not a registered gateway!"
+  link-step-1: "§f[1/2] §7Source selected. Now look at the target and enter again."
+  link-step-2: "§f[2/2] §aCONNECTED SUCCESSFULLY!"
+
+  # Messages from GateListener (Interactions & Breaking)
+  gate-removed: "&6{TYPE} &cgate has been removed!"
+  power-block-break-deny: "&cThis block is powering a gate output!"
+  gate-placed: "&aPlaced &e{TYPE} &agate. &6Output: &e{OUT}"
+
+  # Edit mode
+  edit-mode-start: "&aEntered edit mode for &e{TYPE} &agate"
+  edit-limit-info: "&7Type in chat: &6limit: <1-100> &7(Current: {CURRENT})"
+  edit-range-info: "&7Type in chat: &6range: <1-15> &7(Current: {CURRENT})"
+  edit-time-info: "&7Type in chat: &6time: <number>s &7or &6<number>t"
+  edit-cancel-info: "&7Type &6cancel &7to exit without changes."
+  edit-cancelled: "&cEditing cancelled"
+
+  # Edit results
+  limit-set: "&aLimit set to: &e{VAL}"
+  limit-range-error: "&cLimit must be between 1 and 100!"
+  limit-format-error: "&cInvalid format! Use: limit: <number>"
+
+  range-set: "&aRange set to: &e{VAL} blocks"
+  range-range-error: "&cRange must be between 1 and 15!"
+  range-format-error: "&cInvalid format! Use: range: <number>"
+
+  time-set: "&aTime set to: &e{VAL}t"
+  time-unit-error: "&cAdd 's' (seconds) or 't' (ticks)!"
+  time-format-error: "&cInvalid time format!"
+
+  # Others
+  gate-received: "&aYou received a gate: &e{TYPE}"
+  unknown-type-gate: "&cUnknown gate type!"

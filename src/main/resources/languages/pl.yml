@@ -1,0 +1,67 @@
+# #############################################################
+# #                                                           #
+# #                AstraLogicGates - Plik Językowy            #
+# #                     Język: Polski (PL)                    #
+# #                                                           #
+# #############################################################
+
+# You can use color codes (e.g., &a, &c, &l) and placeholders like %time%, %player%, %min%.
+messages:
+  no-permission: "&cNie masz permisji!"
+  reload-success: "&aKonfiguracja przeładowana pomyślnie!"
+  usage-gate-command: "&cUżycie: §6/bramka <Kategoria> <Typ> <Parametr"
+
+  # Wiadomości z komendy /bramka
+  need-channel: "&cMusisz podać kanał! <kanał1,kanał2...>"
+  provide-limit: "&cPodaj limit (1-100)!"
+  provide-value: "&cPodaj wartość!"
+  provide-mode: "&cPodaj tryb! <ADD/SUB>"
+  provide-sign: "&cPodaj znak! (>, <, ==, !=, >=, <=)"
+  invalid-sign: "&cTo nie jest prawidłowy operator matematyczny!"
+  not-a-number: "&cTo nie jest liczba!"
+  limit-range: "&cLimit musi być w zakresie 1-100!"
+  provide-range: "&cPodaj zasięg (1-15)!"
+  range-out-of-bounds: "&cZasięg musi być w zakresie 1-15!"
+  provide-time: "&cPodaj czas (5t-10s)!"
+  provide-delay: "&cPodaj opóźnienie (1t-10s)!"
+  provide-unit: "&cPodaj jednostkę: &e't' &7(ticki) lub &e's' &7(sekundy)!"
+  invalid-time-format: "&cPodaj poprawny czas (np. 10s)!"
+  ticks-range: "&cCzas w tickach musi być od 5t do 200t (10s)!"
+  ticks-range-reapeter: "&cCzas w tickach musi być od 1t do 200t (10s)!"
+  seconds-range: "&cCzas w sekundach musi być od 1s do 10s!"
+
+  # Wiadomości z linkera
+  link-no-block: "§cMusisz patrzeć na jakiś blok!"
+  link-not-gate: "§cTen blok nie jest zarejestrowaną bramką!"
+  link-step-1: "§f[1/2] §7Zaznaczono źródło. Teraz spójrz na cel i wpisz ponownie"
+  link-step-2: "§f[2/2] §aPOŁĄCZONO POMYŚLNIE!"
+
+  # Wiadomości z GateListener (Interakcje i niszczenie)
+  gate-removed: "&cBramka &6{TYPE} &czostała usunięta!"
+  power-block-break-deny: "&cTo jest blok zasilający wyjście bramki!"
+  gate-placed: "&aPostawiono bramkę &e{TYPE} &6Wyjście: &e{OUT}"
+
+  # Tryb edycji
+  edit-mode-start: "&aWszedłeś w tryb edycji bramki &e{TYPE}"
+  edit-limit-info: "&7Wpisz na czacie: &6limit: <liczba 1-100> &7(Obecnie: {CURRENT})"
+  edit-range-info: "&7Wpisz na czacie: &6zasięg: <liczba 1-15> &7(Obecnie: {CURRENT})"
+  edit-time-info: "&7Wpisz na czacie: &6czas: <liczba>s &7lub &6<liczba>t"
+  edit-cancel-info: "&7Wpisz &6anuluj&7, aby wyjść bez zmian."
+  edit-cancelled: "&cEdycja anulowana"
+
+  # Wyniki edycji
+  limit-set: "&aUstawiono limit na: &e{VAL}"
+  limit-range-error: "&cLimit musi być w przedziale 1-100!"
+  limit-format-error: "&cBłędny format! Użyj: limit: <liczba>"
+
+  range-set: "&aUstawiono zasięg na: &e{VAL} bloków"
+  range-range-error: "&cZasięg musi być w przedziale 1-15!"
+  range-format-error: "&cBłędny format! Użyj: zasięg: <liczba>"
+
+  time-set: "&aUstawiono czas na: &e{VAL}t"
+  time-unit-error: "&cDodaj 's' (sekundy) lub 't' (ticki)!"
+  time-format-error: "&cBłędny format czasu!"
+
+  # Inne
+  gate-received: "&aOtrzymałeś bramkę: &e{TYPE}"
+  unknown-type-gate: "&cNieznany typ bramki!"
