@@ -19,18 +19,17 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 public class GateListener implements Listener {
 
     private final AstraLogicGates plugin;
-    private final GateManager manager;
     private final Map<UUID, String> editingPlayers = new HashMap<>();
 
-    public GateListener(AstraLogicGates plugin, GateManager manager) {
+    public GateListener(AstraLogicGates plugin) {
         this.plugin = plugin;
-        this.manager = manager;
     }
 
     @EventHandler
@@ -38,29 +37,19 @@ public class GateListener implements Listener {
         Block brokenBlock = e.getBlock();
         String locStr = GateUtils.locToStr(e.getBlock().getLocation());
         String path = "gates." + locStr;
-        FileConfiguration cfg = plugin.getGatesConfig();
+        FileConfiguration config = plugin.getGatesConfig();
 
-        if (cfg.contains(path)) {
-            String type = cfg.getString(path + ".type", "UNKNOWN");
-            String outStr = cfg.getString(path + ".out");
+        if (config.contains(path)) {
+            String type = config.getString(path + ".type", "UNKNOWN");
+            String outStr = config.getString(path + ".out");
             if (outStr == null) return;
-
-            // 1. CZYSZCZENIE LINKU BEZPRZEWODOWEGO
-            String targetStr = cfg.getString(path + ".target_link");
-            if (targetStr != null && !targetStr.isEmpty()) {
-                Location targetLoc = GateUtils.strToLoc(targetStr);
-                if (targetLoc != null) {
-                    // Wysyłamy 0 do zlinkowanej bramki, żeby ją "odświeżyć"
-                    plugin.getGateManager().sendDataToGate(targetLoc.getBlock(), 0, brokenBlock);
-                }
-            }
 
             BlockFace out = BlockFace.valueOf(outStr);
             Block target = e.getBlock().getRelative(out);
 
             if ("SYNCHRONIZER".equals(type)) {
-                String sL = cfg.getString(path + ".sideL");
-                String sR = cfg.getString(path + ".sideR");
+                String sL = config.getString(path + ".sideL");
+                String sR = config.getString(path + ".sideR");
                 if (sL != null) {
                     Location lLoc = GateUtils.strToLoc(sL);
                     if (lLoc != null) {
@@ -77,28 +66,39 @@ public class GateListener implements Listener {
                 }
             }
 
-            ConfigurationSection gatesSection = cfg.getConfigurationSection("gates");
+            ConfigurationSection gatesSection = config.getConfigurationSection("gates");
             if (gatesSection != null) {
                 for (String key : gatesSection.getKeys(false)) {
                     String gatePath = "gates." + key;
-                    String link = cfg.getString(gatePath + ".target_link");
+                    String link = config.getString(gatePath + ".target_link");
                     if (locStr.equals(link)) {
-                        cfg.set(gatePath + ".target_link", null);
+                        config.set(gatePath + ".target_link", null);
                     }
                 }
             }
 
             GateUtils.updateOutput(plugin, path, target, false);
 
+            // 1. Wyciągamy oryginalne Lore z configu (zanim usuniemy dane bramki!)
+            List<String> savedLore = config.getStringList(path + ".lore");
+
             ItemStack item = new ItemStack(e.getBlock().getType());
             ItemMeta meta = item.getItemMeta();
+
             if (meta != null) {
+                // Ustawiamy nazwę taką, jak chcesz
                 meta.setDisplayName("§eBramka: §6" + type.toUpperCase());
+
+                // 2. Przywracamy Lore "takie jakie było" z przedmiotu
+                meta.setLore(savedLore);
+
                 item.setItemMeta(meta);
             }
 
+            // 3. Dropimy przedmiot z odzyskanymi danymi
             e.getBlock().getWorld().dropItemNaturally(e.getBlock().getLocation(), item);
-            cfg.set(path, null);
+
+            config.set(path, null);
             plugin.saveGates();
 
             e.setDropItems(false);
@@ -146,8 +146,6 @@ public class GateListener implements Listener {
         ItemMeta meta = item.getItemMeta();
         if (meta == null || !meta.hasDisplayName()) return;
 
-        if (!GateManager.ALLOWED_BRAMKI.contains(e.getBlock().getType())) return;
-
         String name = meta.getDisplayName();
         if (name.startsWith("§eBramka: §6")) {
             String type = name.replace("§eBramka: §6", "").toUpperCase();
@@ -160,6 +158,11 @@ public class GateListener implements Listener {
             cfg.set(path + ".type", type);
             cfg.set(path + ".out", outFace.name());
             cfg.set(path + ".state", false);
+
+            // Pobieramy opis itemu i wkładamy go do configu
+            if (item.hasItemMeta() && item.getItemMeta().hasLore()) {
+                cfg.set(path + ".lore", item.getItemMeta().getLore());
+            }
 
             if ("SYNCHRONIZER".equals(type)) {
                 BlockFace left = GateUtils.rotate90(GateUtils.rotate90(GateUtils.rotate90(outFace)));
@@ -175,8 +178,10 @@ public class GateListener implements Listener {
                 cfg.set(path + ".sideR", GateUtils.locToStr(rightSide.getLocation()));
                 cfg.set(path + ".direction", outFace.name());
             }
-
-            if ("VARIABLE_GATE".equals(type)) {
+            if ("CABLE_DATA".equals(type)) {
+                cfg.set(path + ".value", 0);
+            }
+            else if ("VARIABLE_GATE".equals(type)) {
                 cfg.set(path + ".value", 0);
                 cfg.set(path + ".last_back", false);
             } else if ("BOOLEAN_GATE".equals(type)) {
@@ -197,6 +202,13 @@ public class GateListener implements Listener {
                         int val = Integer.parseInt(line.replace("§7Wartość: §f", "").trim());
                         if ("NUMBER_GATE".equals(type)) cfg.set(path + ".value", val);
                         else if ("DECODER".equals(type)) cfg.set(path + ".target", val);
+                    }
+                    if (line.contains("min: ")) {
+                        int min = Integer.parseInt(line.replace("§7min: §f", "").trim());
+                        cfg.set(path + ".min", min);
+                    } else if (line.contains("max: ")) {
+                        int max = Integer.parseInt(line.replace("§7max: §f", "").trim());
+                        cfg.set(path + ".max", max);
                     }
                     else if (line.contains("Tryb: ")) {
                         String rawMode = line.replace("§7Tryb: §f", "").trim();
@@ -226,6 +238,11 @@ public class GateListener implements Listener {
                     cfg.set(path + ".count", 0);
                 } else if ("SENSOR".equals(type)) {
                     cfg.set(path + ".interval", 5);
+                } else if ("NUMBER_GATE".equals(type) || "VARIABLE_GATE".equals(type) || "CABLE_DATA".equals(type)) {
+                    cfg.set(path + ".value", 0); // Domyślne zero, żeby walidator nie płakał
+                } else if ("RANDOM_NUMBER".equals(type)) {
+                    cfg.set(path + ".min", 0);
+                    cfg.set(path + ".max", 10);
                 }
             }
 

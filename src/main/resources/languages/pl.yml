@@ -15,9 +15,13 @@ messages:
   need-channel: "&cMusisz podać kanał! <kanał1,kanał2...>"
   provide-limit: "&cPodaj limit (1-100)!"
   provide-value: "&cPodaj wartość!"
-  provide-mode: "&cPodaj tryb! <ADD/SUB>"
+  provide-range2: "&cPodaj zakres!"
+  wrong-format: "&cZły format! Użyj: min-max (np. 0-10)"
+  provide-mode: "&cPodaj tryb!"
   provide-sign: "&cPodaj znak! (>, <, ==, !=, >=, <=)"
   invalid-sign: "&cTo nie jest prawidłowy operator matematyczny!"
+  negative-number: "&cNie możesz wpisać liczby ujemnej!"
+  min-greater-than-max: "&cLiczba min nie może być większa od liczby max!"
   not-a-number: "&cTo nie jest liczba!"
   limit-range: "&cLimit musi być w zakresie 1-100!"
   provide-range: "&cPodaj zasięg (1-15)!"
@@ -31,10 +35,12 @@ messages:
   seconds-range: "&cCzas w sekundach musi być od 1s do 10s!"
 
   # Wiadomości z linkera
-  link-no-block: "§cMusisz patrzeć na jakiś blok!"
-  link-not-gate: "§cTen blok nie jest zarejestrowaną bramką!"
-  link-step-1: "§f[1/2] §7Zaznaczono źródło. Teraz spójrz na cel i wpisz ponownie"
-  link-step-2: "§f[2/2] §aPOŁĄCZONO POMYŚLNIE!"
+  link-no-block: "&cMusisz patrzeć na blok bramki!"
+  link-not-gate: "&cTen blok nie jest zarejestrowaną bramką!"
+  link-step-1: "&aZaznaczono źródło, &bTeraz spójrz na cel i wpisz ponownie"
+  link-step-2: "&ePołączono Pomyślnie!"
+  link-already-exists: "&cTa bramka jest już połączona!"
+  unlink-success: "&aUsunięto wszystkie połączenia wychodzące!"
 
   # Wiadomości z GateListener (Interakcje i niszczenie)
   gate-removed: "&cBramka &6{TYPE} &czostała usunięta!"
@@ -61,6 +67,17 @@ messages:
   time-set: "&aUstawiono czas na: &e{VAL}t"
   time-unit-error: "&cDodaj 's' (sekundy) lub 't' (ticki)!"
   time-format-error: "&cBłędny format czasu!"
+
+  # Zaznaczanie
+  receive-selector: "&aOtrzymałeś Selektor Bramek!"
+  position-1-selected: "&ePunkt 1 ustawiony!"
+  position-2-selected: "&ePunkt 2 ustawiony!"
+  both-positions-required: "&cMusisz najpierw zaznaczyć oba punkty!"
+  cut-out-area: "&aWycięto obszar, Usunięto §f{COUNT} &abramek logicznych"
+
+  copy-success: "&aSkopiowano &e{COUNT} &abramek do schowka!"
+  clipboard-empty: "&cTwój schowek jest pusty! Najpierw użyj /alg copy"
+  paste-success: "&aPomyślnie wklejono &e{COUNT} &abramek!"
 
   # Inne
   gate-received: "&aOtrzymałeś bramkę: &e{TYPE}"

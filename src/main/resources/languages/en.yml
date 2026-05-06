@@ -15,9 +15,13 @@ messages:
   need-channel: "&cYou must specify a channel! <channel1,channel2...>"
   provide-limit: "&cPlease specify a limit (1-100)!"
   provide-value: "&cPlease specify a value!"
-  provide-mode: "&cPlease specify a mode! <ADD/SUB>"
+  provide-range2: "&cProvide a range!"
+  wrong-format: "&cWrong format! Use: min-max (e.g., 0-10)"
+  provide-mode: "&cPlease specify a mode!"
   provide-sign: "&cEnter a sign! (>, <, ==, !=, >=, <=)"
   invalid-sign: "&cThis is not a valid mathematical operator!"
+  negative-number: "&cYou cannot enter a negative number!"
+  min-greater-than-max: "&cThe min number cannot be greater than the max number!"
   not-a-number: "&cThis is not a number!"
   limit-range: "&cThe limit must be in the range 1-100!"
   provide-range: "&cPlease specify a range (1-15)!"
@@ -31,10 +35,12 @@ messages:
   seconds-range: "&cTime in seconds must be between 1s and 10s!"
 
   # Messages from linker
-  link-no-block: "§cYou must be looking at a block!"
-  link-not-gate: "§cThis block is not a registered gateway!"
-  link-step-1: "§f[1/2] §7Source selected. Now look at the target and enter again."
-  link-step-2: "§f[2/2] §aCONNECTED SUCCESSFULLY!"
+  link-no-block: "&cYou must be looking at the gateway block!"
+  link-not-gate: "&cThis block is not a registered gateway!"
+  link-step-1: "&aSource selected, &bNow look at the destination and try again."
+  link-step-2: "&eConnected Successfully!"
+  link-already-exists: "&cThis gateway is already connected!"
+  unlink-success: "&aAll outgoing connections removed!"
 
   # Messages from GateListener (Interactions & Breaking)
   gate-removed: "&6{TYPE} &cgate has been removed!"
@@ -61,6 +67,17 @@ messages:
   time-set: "&aTime set to: &e{VAL}t"
   time-unit-error: "&cAdd 's' (seconds) or 't' (ticks)!"
   time-format-error: "&cInvalid time format!"
+
+  # Selecting
+  receive-selector: "&aYou received the Gate Selector!"
+  position-1-selected: "&ePoint 1 set!"
+  position-2-selected: "&ePoint 2 set!"
+  both-positions-required: "&cYou must select both points first!"
+  cut-out-area: "&aCut out area, §f{COUNT} &alogic gates removed"
+
+  copy-success: "&aSuccessfully copied &e{COUNT} &agates to clipboard!"
+  clipboard-empty: "&cYour clipboard is empty! Use /alg copy first"
+  paste-success: "&aSuccessfully pasted &e{COUNT} &agates!"
 
   # Others
   gate-received: "&aYou received a gate: &e{TYPE}"

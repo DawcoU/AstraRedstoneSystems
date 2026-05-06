@@ -7,6 +7,7 @@ import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
+import org.bukkit.plugin.Plugin;
 
 public class GateUtils {
 
@@ -27,6 +28,24 @@ public class GateUtils {
             }
         }
         return b.getBlockPower();
+    }
+
+    public static int getDataFrom(Block block, BlockFace fromFace, AstraLogicGates plugin) {
+        String key = locToStr(block.getLocation());
+        FileConfiguration config = plugin.getGatesConfig();
+        // Pobiera wartość wysyłaną przez blok obok
+        return config.getInt("gates." + key + ".current_out", 0);
+    }
+
+    public static int getCustomOrRedstonePower(Plugin plugin, Block block) {
+        AstraLogicGates main = (AstraLogicGates) plugin;
+        FileConfiguration config = main.getGatesConfig();
+
+        String locStr = locToStr(block.getLocation());
+        if (config.contains("gates." + locStr)) {
+            return config.getInt("gates." + locStr + ".value", 0);
+        }
+        return getPowerAt(block);
     }
 
     public static boolean isInputPowered(Block g, BlockFace out) {
@@ -65,33 +84,25 @@ public class GateUtils {
         org.bukkit.Particle.DustOptions dust = active ?
                 new org.bukkit.Particle.DustOptions(org.bukkit.Color.LIME, 1.3F) :
                 new org.bukkit.Particle.DustOptions(org.bukkit.Color.RED, 1.3F);
-        gate.getWorld().spawnParticle(org.bukkit.Particle.DUST, loc, 1, 0, 0, 0, 0, dust);
+        gate.getWorld().spawnParticle(org.bukkit.Particle.REDSTONE, loc, 1, 0, 0, 0, 0, dust);
     }
 
     // Tutaj dodałem TwojaGłównaKlasa plugin jako argument, żeby updateOutput miało dostęp do configu
     public static void updateOutput(AstraLogicGates plugin, String path, Block target, boolean p) {
         FileConfiguration c = plugin.getGatesConfig();
+        // Upewnij się, że target to faktycznie blok, który ma zasilać,
+        // ale usuwanie/stawianie bloku pod spodem musi być precyzyjne!
         Block powerBlock = target.getRelative(BlockFace.DOWN);
 
-        if (p) {
-            if (powerBlock.getType() != Material.REDSTONE_BLOCK) {
-                c.set(path + ".oldMat", powerBlock.getType().name());
-                c.set(path + ".oldData", powerBlock.getBlockData().getAsString());
-                powerBlock.setType(Material.REDSTONE_BLOCK);
-                plugin.saveGates();
-            }
-        } else if (powerBlock.getType() == Material.REDSTONE_BLOCK) {
+        // Zapobiegaj miganiu - sprawdź czy zmiana jest faktycznie potrzebna
+        if (p && powerBlock.getType() != Material.REDSTONE_BLOCK) {
+            c.set(path + ".oldMat", powerBlock.getType().name());
+            c.set(path + ".oldData", powerBlock.getBlockData().getAsString());
+            powerBlock.setType(Material.REDSTONE_BLOCK);
+        } else if (!p && powerBlock.getType() == Material.REDSTONE_BLOCK) {
             String matName = c.getString(path + ".oldMat", "AIR");
-            String d = c.getString(path + ".oldData");
-            try {
-                powerBlock.setType(Material.valueOf(matName));
-                if (d != null) powerBlock.setBlockData(Bukkit.createBlockData(d));
-            } catch (Exception e) {
-                powerBlock.setType(Material.AIR);
-            }
+            powerBlock.setType(Material.valueOf(matName));
             c.set(path + ".oldMat", null);
-            c.set(path + ".oldData", null);
-            plugin.saveGates();
         }
     }
 }

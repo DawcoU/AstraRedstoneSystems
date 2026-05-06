@@ -43,9 +43,9 @@ public class NoticeManager {
 
     public void sendLangUpdateSuccess(String fileName) {
         String msg = getLang().equalsIgnoreCase("pl") ?
-                "§aZaktualizowano brakujące linijki w pliku" :
-                "§aSuccessfully updated missing lines in file";
-        plugin.getLogger().info(msg + fileName);
+                "§aZaktualizowano brakujące linijki w pliku " :
+                "§aSuccessfully updated missing lines in file ";
+        Bukkit.getConsoleSender().sendMessage(PREFIX2 + msg + " §e" + fileName);
     }
 
     public void sendLangUpdateError(String fileName, String error) {

@@ -6,7 +6,7 @@
 
     <groupId>pl.dawcou</groupId>
     <artifactId>AstraLogicGates</artifactId>
-    <version>1.1.0</version>
+    <version>1.2.0</version>
     <packaging>jar</packaging>
 
     <name>AstraLogicGates</name>
@@ -55,7 +55,7 @@
 
     <repositories>
         <repository>
-            <id>papermc-repo</id>
+            <id>papermc</id>
             <url>https://repo.papermc.io/repository/maven-public/</url>
         </repository>
     </repositories>
@@ -64,7 +64,7 @@
         <dependency>
             <groupId>io.papermc.paper</groupId>
             <artifactId>paper-api</artifactId>
-            <version>1.21.11-R0.1-SNAPSHOT</version>
+            <version>1.20.4-R0.1-SNAPSHOT</version>
             <scope>provided</scope>
         </dependency>
     </dependencies>

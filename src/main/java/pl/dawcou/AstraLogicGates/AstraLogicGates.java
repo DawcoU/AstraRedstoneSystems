@@ -4,11 +4,11 @@ import net.md_5.bungee.api.ChatColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
-import org.bukkit.block.Block;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
@@ -16,6 +16,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.jetbrains.annotations.NotNull;
+import pl.dawcou.AstraLogicGates.gates.*;
 
 import java.io.File;
 import java.io.IOException;
@@ -30,16 +31,17 @@ public class AstraLogicGates extends JavaPlugin implements CommandExecutor, TabC
     private FileConfiguration gatesConfig;
     private final Map<UUID, Location> linkingSession = new HashMap<>();
 
-    private GateManager gateManager;
+    private GateValidator gateValidator;
+    private BasicGates basicGates;
+    private MemoryGates memoryGates;
+    private TimeGates timeGates;
+    private NumberGates numberGates;
+
     private LanguageManager languageManager;
     private NoticeManager noticeManager;
 
     public void setLanguageManager(LanguageManager languageManager) {
         this.languageManager = languageManager;
-    }
-
-    public GateManager getGateManager() {
-        return gateManager;
     }
 
     public LanguageManager getLanguageManager() {
@@ -50,21 +52,39 @@ public class AstraLogicGates extends JavaPlugin implements CommandExecutor, TabC
         return noticeManager;
     }
 
+    public GateValidator getValidator() { return gateValidator; }
+
+    public Map<UUID, Location> getLinkingSession() {
+        return this.linkingSession;
+    }
+
     @Override
     public void onEnable() {
+        this.gateValidator = new GateValidator(this);
         this.noticeManager = new NoticeManager(this);
         this.languageManager = new LanguageManager(this);
-        this.gateManager = new GateManager(this);
+        this.basicGates = new BasicGates(this, gateValidator);
+        this.memoryGates = new MemoryGates(this, gateValidator);
+        this.timeGates = new TimeGates(this, gateValidator);
+        this.numberGates = new NumberGates(this, gateValidator);
+
+        SelectionManager selectionManager = new SelectionManager(this);
+        FilesUpdater updater = new FilesUpdater(this);
+        CommandManager commandHandler = new CommandManager (this, selectionManager);
+
         GateConverter converter = new GateConverter(this);
         converter.runAllMigrations();
 
         saveDefaultConfig();
         createGatesConfig();
 
-        FilesUpdater updater = new FilesUpdater(this);
         updater.check();
 
-        getServer().getPluginManager().registerEvents(new GateListener(this, gateManager), this);
+        this.languageManager.reload();
+
+        // 2. Rejestrujesz TĘ SAMĄ instancję do eventów
+        getServer().getPluginManager().registerEvents(selectionManager, this);
+        getServer().getPluginManager().registerEvents(new GateListener(this), this);
 
         var cmdBramka = getCommand("bramka");
         if (cmdBramka != null) {
@@ -74,11 +94,34 @@ public class AstraLogicGates extends JavaPlugin implements CommandExecutor, TabC
 
         var cmdAlg = getCommand("astralogicgates");
         if (cmdAlg != null) {
-            cmdAlg.setExecutor(this);
-            cmdAlg.setTabCompleter(this);
+            cmdAlg.setExecutor(commandHandler);
+            cmdAlg.setTabCompleter(commandHandler);
         }
 
-        Bukkit.getScheduler().runTaskTimer(this, gateManager::checkGates, 1L, 1L);
+        getServer().getScheduler().runTaskTimer(this, () -> {
+            FileConfiguration config = getGatesConfig();
+            ConfigurationSection gates = config.getConfigurationSection("gates");
+
+            // 1. NAJPIERW: Zerujemy wszystkie wyjścia CABLE_DATA w configu (tylko w pamięci RAM)
+            if (gates != null) {
+                for (String key : gates.getKeys(false)) {
+                    if ("CABLE_DATA".equals(gates.getString(key + ".type"))) {
+                        gates.set(key + ".current_out", 0);
+                    }
+                }
+            }
+
+            // Odpalamy logikę bramek podstawowych
+            basicGates.runBasicGates();
+            memoryGates.runMemoryGates();
+            timeGates.runTimeGates();
+            numberGates.runNumberGates();
+            
+        }, 20L, 1L);
+
+        Bukkit.getScheduler().runTaskTimerAsynchronously(this, () -> {
+            saveGates();
+        }, 6000L, 6000L); // 20 ticków * 60 sek * 5 min = 6000 ticków
 
         noticeManager.sendStartupLogo();
 
@@ -100,6 +143,9 @@ public class AstraLogicGates extends JavaPlugin implements CommandExecutor, TabC
 
     @Override
     public void onDisable() {
+        // Zapisanie danych bramek z pamięci RAM na dysk
+        saveGates();
+
         noticeManager.sendShutdownLogo();
     }
 
@@ -120,68 +166,18 @@ public class AstraLogicGates extends JavaPlugin implements CommandExecutor, TabC
     }
 
     public void saveGates() {
-        try {
-            gatesConfig.save(gatesFile);
-        } catch (IOException ignored) {}
+        synchronized (this.gatesConfig) {
+            try {
+                gatesConfig.save(gatesFile);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
     }
 
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
         if (!(sender instanceof Player player)) return true;
-
-        if (command.getName().equalsIgnoreCase("astralogicgates") || command.getName().equalsIgnoreCase("alg")) {
-            if (args.length == 1 && args[0].equalsIgnoreCase("reload")) {
-                if (!sender.hasPermission("astralogicgates.reload")) {
-                    sender.sendMessage(this.getLanguageManager().getWithPrefix("no-permission"));
-                    return true;
-                }
-                this.reloadConfig();
-                this.languageManager = new LanguageManager(this);
-                sender.sendMessage(this.getLanguageManager().getWithPrefix("reload-success"));
-                return true;
-            }
-
-            if (args.length == 1 && args[0].equalsIgnoreCase("info")) {
-                sender.sendMessage("§7------------ " + PREFIX + " §7----------");
-                sender.sendMessage("§aPlugin created by: §eDawcoU");
-                sender.sendMessage("§aPlugin version: §ev" + getPluginMeta().getVersion());
-                sender.sendMessage("");
-                sender.sendMessage("§6Copyright © 2026 DawcoU All rights reserved");
-                sender.sendMessage("§7-----------------------");
-                return true;
-            }
-
-            if (args.length >= 1 && args[0].equalsIgnoreCase("link")) {
-                if (!sender.hasPermission("astralogicgates.admin")) {
-                    sender.sendMessage(this.getLanguageManager().getWithPrefix("no-permission"));
-                    return true;
-                }
-
-                Block b = player.getTargetBlockExact(5);
-                if (b == null || b.getType() == Material.AIR) {
-                    player.sendMessage(languageManager.getWithPrefix("link-no-block"));
-                    return true;
-                }
-                Location loc = b.getLocation();
-                String path = "gates." + GateUtils.locToStr(loc);
-                if (!getGatesConfig().contains(path)) {
-                    player.sendMessage(languageManager.getWithPrefix("link-not-gate"));
-                    return true;
-                }
-                UUID uuid = player.getUniqueId();
-                if (!linkingSession.containsKey(uuid)) {
-                    linkingSession.put(uuid, loc);
-                    player.sendMessage(languageManager.getWithPrefix("link-step-1"));
-                } else {
-                    Location origin = linkingSession.get(uuid);
-                    getGatesConfig().set("gates." + GateUtils.locToStr(origin) + ".target_link", GateUtils.locToStr(loc));
-                    saveGates();
-                    player.sendMessage(languageManager.getWithPrefix("link-step-2"));
-                    linkingSession.remove(uuid);
-                }
-                return true;
-            }
-        }
 
         if (label.equalsIgnoreCase("bramka")) {
             if (!player.hasPermission("astralogicgates.gates")) {
@@ -204,9 +200,8 @@ public class AstraLogicGates extends JavaPlugin implements CommandExecutor, TabC
                     case "NAND" -> Material.PINK_CONCRETE;
                     case "XOR" -> Material.PURPLE_CONCRETE;
                     case "XNOR" -> Material.MAGENTA_CONCRETE;
-                    case "NIMPLY" -> Material.BROWN_CONCRETE;
-                    case "RANDOM" -> Material.CYAN_CONCRETE;
-                    case "BOOSTER" -> Material.ORANGE_CONCRETE;
+                    case "NIMPLY", "IMPLY" -> Material.BROWN_CONCRETE;
+                    case "BUFFER" -> Material.ORANGE_CONCRETE;
                     default -> null;
                 };
                 case "memory" -> switch (type) {
@@ -215,7 +210,7 @@ public class AstraLogicGates extends JavaPlugin implements CommandExecutor, TabC
                     case "MEMORY_CELL", "MEMORY_READ" -> Material.BLUE_CONCRETE;
                     default -> null;
                 };
-                case "data" -> switch (type) {
+                case "numbers" -> switch (type) {
                     case "COUNTER" -> Material.IRON_BLOCK;
                     case "NUMBER_GATE" -> Material.YELLOW_CONCRETE;
                     case "BOOLEAN_GATE" -> Material.ORANGE_CONCRETE;
@@ -223,6 +218,8 @@ public class AstraLogicGates extends JavaPlugin implements CommandExecutor, TabC
                     case "MATH" -> Material.BLUE_CONCRETE;
                     case "COMPARATOR", "DECODER" -> Material.GRAY_CONCRETE;
                     case "LINKER" -> Material.CYAN_CONCRETE;
+                    case "RANDOM_BOOLEAN", "RANDOM_NUMBER" -> Material.CYAN_CONCRETE;
+                    case "CABLE_DATA" -> Material.BLACK_WOOL;
                     default -> null;
                 };
                 case "space" -> switch (type) {
@@ -273,15 +270,81 @@ public class AstraLogicGates extends JavaPlugin implements CommandExecutor, TabC
 
                 lore.add("§7Wartość: §f" + args[2]);
 
+            } else if (type.equals("RANDOM_NUMBER")) {
+                if (args.length < 3) {
+                    player.sendMessage(this.getLanguageManager().getWithPrefix("provide-range2"));
+                    return true;
+                }
+
+                String val = args[2];
+
+                if (val.contains("-")) {
+                    String[] parts = val.split("-");
+
+                    if (parts.length == 2) {
+                        try {
+                            int min = Integer.parseInt(parts[0]);
+                            int max = Integer.parseInt(parts[1]);
+
+                            // BLOKADA UJEMNYCH I BŁĘDNYCH ZAKRESÓW
+                            if (min < 0 || max < 0) {
+                                player.sendMessage(this.getLanguageManager().getWithPrefix("negative-number"));
+                                return true;
+                            }
+
+                            if (min > max) {
+                                player.sendMessage(this.getLanguageManager().getWithPrefix("min-greater-than-max"));
+                                return true;
+                            }
+
+                            lore.add("§7min: §f" + min);
+                            lore.add("§7max: §f" + max);
+
+                        } catch (NumberFormatException e) {
+                            player.sendMessage(this.getLanguageManager().getWithPrefix("not-a-number"));
+                            return true;
+                        }
+                    } else {
+                        player.sendMessage(this.getLanguageManager().getWithPrefix("wrong-format"));
+                        return true;
+                    }
+                } else {
+                    return true;
+                }
+
             } else if (type.equals("MATH")) {
                 if (args.length < 3) {
                     player.sendMessage(this.getLanguageManager().getWithPrefix("provide-mode"));
                     return true;
                 }
 
-                String modeName = (args[2].equalsIgnoreCase("sub") || args[2].equalsIgnoreCase("subtract"))
-                        ? "Subtract"
-                        : "Add";
+                String modeName;
+                switch (args[2]) {
+                    case "+":
+                    case "add":
+                        modeName = "Add";
+                        break;
+                    case "-":
+                    case "sub":
+                        modeName = "Subtract";
+                        break;
+                    case "*":
+                    case "x":
+                    case "mul":
+                        modeName = "Multiply";
+                        break;
+                    case "/":
+                    case "div":
+                        modeName = "Divide";
+                        break;
+                    case "^":
+                    case "pow":
+                        modeName = "Power";
+                        break;
+                    default:
+                        modeName = "Add";
+                        break;
+                }
 
                 lore.add("§7Tryb: §f" + modeName);
 
@@ -299,12 +362,6 @@ public class AstraLogicGates extends JavaPlugin implements CommandExecutor, TabC
                 }
 
                 lore.add("§7Tryb: §f" + sign);
-
-            } else if (type.equals("VARIABLE_GATE")) {
-                lore.add("§8(Przyjmuje sygnały liczbowe i binarne)");
-
-            } else if (type.equals("BOOLEAN_GATE")) {
-                lore.add("§8(Wysyła 1 gdy włączona, 0 gdy wyłączona)");
 
             } else if (type.equals("COUNTER")) {
                 if (args.length < 3) {
@@ -397,28 +454,32 @@ public class AstraLogicGates extends JavaPlugin implements CommandExecutor, TabC
         List<String> hints = new ArrayList<>();
         if (command.getName().equalsIgnoreCase("bramka")) {
             if (args.length == 1) {
-                Arrays.asList("logic", "memory", "data", "space", "time").forEach(c -> { if (c.startsWith(args[0].toLowerCase())) hints.add(c); });
+                Arrays.asList("logic", "memory", "numbers", "space", "time").forEach(c -> {
+                    if (c.startsWith(args[0].toLowerCase())) hints.add(c);
+                });
             } else if (args.length == 2) {
                 List<String> types = switch (args[0].toLowerCase()) {
-                    case "logic" -> Arrays.asList("NOT", "AND", "OR", "NOR", "NAND", "XOR", "XNOR", "NIMPLY", "RANDOM", "BOOSTER");
+                    case "logic" ->
+                            Arrays.asList("NOT", "AND", "OR", "NOR", "NAND", "XOR", "XNOR", "NIMPLY", "IMPLY", "BUFFER");
                     case "memory" -> Arrays.asList("LATCH", "TFF", "MEMORY_CELL", "MEMORY_READ");
-                    case "data" -> Arrays.asList("COUNTER", "NUMBER_GATE", "BOOLEAN_GATE", "VARIABLE_GATE", "MATH", "COMPARATOR", "DECODER", "LINKER");
+                    case "numbers" ->
+                            Arrays.asList("COUNTER", "RANDOM_BOOLEAN", "RANDOM_NUMBER", "NUMBER_GATE", "BOOLEAN_GATE", "VARIABLE_GATE", "MATH", "COMPARATOR", "DECODER", "LINKER", "CABLE_DATA");
                     case "space" -> Arrays.asList("SENDER", "RECEIVER", "SENSOR");
                     case "time" -> Arrays.asList("CLOCK", "CLOCK_GATE", "REPEATER", "SYNCHRONIZER");
                     default -> Collections.emptyList();
                 };
-                types.forEach(t -> { if (t.startsWith(args[1].toUpperCase())) hints.add(t); });
+                types.forEach(t -> {
+                    if (t.startsWith(args[1].toUpperCase())) hints.add(t);
+                });
             } else if (args.length == 3) {
                 String type = args[1].toUpperCase();
                 if (type.matches("CLOCK|CLOCK_GATE|REPEATER")) hints.addAll(Arrays.asList("10t", "1s"));
-                else if (type.equals("MATH")) hints.addAll(Arrays.asList("ADD", "SUBTRACT"));
+                else if (type.equals("MATH")) hints.addAll(Arrays.asList("+", "-", "x", "/", "^"));
                 else if (type.equals("COMPARATOR")) hints.addAll(Arrays.asList(">", "<", "==", "!=", ">=", "<="));
                 else if (type.equals("SENSOR")) hints.add("5");
                 else if (type.equals("COUNTER")) hints.add("10");
-            }
-        } else if (command.getName().equalsIgnoreCase("astralogicgates") || command.getName().equalsIgnoreCase("alg")) {
-            if (args.length == 1) {
-                Arrays.asList("info", "link", "reload").forEach(a -> { if (a.startsWith(args[0].toLowerCase())) hints.add(a); });
+                else if (type.equals("NUMBER_GATE")) hints.add("1");
+                else if (type.equals("RANDOM_NUMBER")) hints.addAll(Arrays.asList("0-5", "0-10"));
             }
         }
         return hints;
