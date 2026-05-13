@@ -1,4 +1,4 @@
-package pl.dawcou.AstraLogicGates;
+package pl.dawcou.AstraRedstoneSystems;
 
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -9,9 +9,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 public class FilesUpdater {
-    private final AstraLogicGates plugin;
+    private final AstraRS plugin;
 
-    public FilesUpdater(AstraLogicGates plugin) {
+    public FilesUpdater(AstraRS plugin) {
         this.plugin = plugin;
     }
 

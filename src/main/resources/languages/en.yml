@@ -1,6 +1,6 @@
 # #############################################################
 # #                                                           #
-# #                AstraLogicGates - Language File            #
+# #                AstraRedstoneSystems - Language File       #
 # #                   Language: English (EN)                  #
 # #                                                           #
 # #############################################################
@@ -47,26 +47,29 @@ messages:
   power-block-break-deny: "&cThis block is powering a gate output!"
   gate-placed: "&aPlaced &e{TYPE} &agate. &6Output: &e{OUT}"
 
-  # Edit mode
-  edit-mode-start: "&aEntered edit mode for &e{TYPE} &agate"
-  edit-limit-info: "&7Type in chat: &6limit: <1-100> &7(Current: {CURRENT})"
-  edit-range-info: "&7Type in chat: &6range: <1-15> &7(Current: {CURRENT})"
-  edit-time-info: "&7Type in chat: &6time: <number>s &7or &6<number>t"
-  edit-cancel-info: "&7Type &6cancel &7to exit without changes."
-  edit-cancelled: "&cEditing cancelled"
+  # --- Gate Edit Mode ---
+  edit-mode-start: "&7You have entered gate edit mode: &6{TYPE}"
+  edit-cancelled: "&cEditing has been canceled."
+  edit-unknown-command: "&cUnknown edit command! Type &7cancel&c to exit."
+  edit-format-error: "&cError! The value entered must be a number."
 
-  # Edit results
-  limit-set: "&aLimit set to: &e{VAL}"
-  limit-range-error: "&cLimit must be between 1 and 100!"
-  limit-format-error: "&cInvalid format! Use: limit: <number>"
+  # Instructions displayed on click (usually without prefix)
+  edit-value-info: "&7Enter: &fvalue: <number>"
+  edit-mode-info: "&7Enter: &fmode: <ADD|SUB|MUL|DIV|POW> &7or &f<==|>|<|>=|!=|...>"
+  edit-random-info: "&7Enter: &fmin: <number> &7or &fmax: <number>"
+  edit-limit-info: "&7Enter: &flimit: <number> &8(Current: {CURRENT})"
+  edit-range-info: "&7Enter: &frange: <number> &8(Current: {CURRENT})"
+  edit-time-info: "&7Enter: &ftime: <number>s &7or &f<number>t"
+  edit-cancel-info: "&7Enter &cancel&7 to exit without changes."
 
-  range-set: "&aRange set to: &e{VAL} blocks"
-  range-range-error: "&cRange must be between 1 and 15!"
-  range-format-error: "&cInvalid format! Use: range: <number>"
-
-  time-set: "&aTime set to: &e{VAL}t"
-  time-unit-error: "&cAdd 's' (seconds) or 't' (ticks)!"
-  time-format-error: "&cInvalid time format!"
+  # Confirm changes
+  value-set: "&7New value set: &f{VAL}"
+  mode-set: "&7Operation mode set: &f{MODE}"
+  limit-set: "&7Counter limit set: &f{VAL}"
+  min-set: "&7Minimum set: &f{VAL}"
+  max-set: "&7Maximum set: &f{VAL}"
+  time-set: "&7Time set: &f{VAL}"
+  range-set: "&7Sensor range set: &f{VAL}"
 
   # Selecting
   receive-selector: "&aYou received the Gate Selector!"
@@ -75,9 +78,16 @@ messages:
   both-positions-required: "&cYou must select both points first!"
   cut-out-area: "&aCut out area, §f{COUNT} &alogic gates removed"
 
+  # Copy, paste, rotate and undo
   copy-success: "&aSuccessfully copied &e{COUNT} &agates to clipboard!"
   clipboard-empty: "&cYour clipboard is empty! Use /alg copy first"
   paste-success: "&aSuccessfully pasted &e{COUNT} &agates!"
+  rotate-success: "&7Rotated clipboard contents by &f{DEGREE} &7 degrees"
+  invalid-rotate-angle: "&cInvalid angle! Use 90, -90, or 180"
+  undo-success: "&aLast paste undone (&7{COUNT} goals)"
+  nothing-to-undo: "&cYou have nothing to undo!"
+  redo-success: "&eSuccessfully redone last undo (&7{COUNT} &egates)."
+  nothing-to-redo: "&cThere is nothing to redo!"
 
   # Others
   gate-received: "&aYou received a gate: &e{TYPE}"

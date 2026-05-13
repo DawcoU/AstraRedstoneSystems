@@ -5,11 +5,11 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>pl.dawcou</groupId>
-    <artifactId>AstraLogicGates</artifactId>
+    <artifactId>AstraRedstoneSystems</artifactId>
     <version>1.2.0</version>
     <packaging>jar</packaging>
 
-    <name>AstraLogicGates</name>
+    <name>AstraRedstoneSystems</name>
 
     <properties>
         <java.version>17</java.version>

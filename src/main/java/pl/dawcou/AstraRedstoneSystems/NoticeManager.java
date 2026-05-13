@@ -1,19 +1,18 @@
-package pl.dawcou.AstraLogicGates;
+package pl.dawcou.AstraRedstoneSystems;
 
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 
 public class NoticeManager {
 
-    private final AstraLogicGates plugin;
+    private final AstraRS plugin;
     private final String PREFIX;
     private final String PREFIX2;
 
-    public NoticeManager(AstraLogicGates plugin) {
+    public NoticeManager(AstraRS plugin) {
         this.plugin = plugin;
-        // Pobieramy prefixy z głównej klasy (upewnij się, że są tam publiczne)
-        this.PREFIX = AstraLogicGates.PREFIX;
-        this.PREFIX2 = AstraLogicGates.PREFIX2;
+        this.PREFIX = AstraRS.PREFIX;
+        this.PREFIX2 = AstraRS.PREFIX2;
     }
 
     // Pomocnicza metoda do pobierania języka
@@ -37,31 +36,31 @@ public class NoticeManager {
     }
 
     public void sendVersionOk(String version) {
-        String msg = getLang().equalsIgnoreCase("pl") ? "§aAstraLogicGates jest aktualny §f(§ev" + version + "§f)" : "§aAstraLogin is up to date §f(§ev" + version + "§f)";
+        String msg = getLang().equalsIgnoreCase("pl") ? "§aAstraRedstoneSystems jest aktualny §f(§ev" + version + "§f)" : "§aAstraLogin is up to date §f(§ev" + version + "§f)";
         Bukkit.getConsoleSender().sendMessage(PREFIX2 + " " + msg);
     }
 
     public void sendLangUpdateSuccess(String fileName) {
         String msg = getLang().equalsIgnoreCase("pl") ?
-                "§aZaktualizowano brakujące linijki w pliku " :
-                "§aSuccessfully updated missing lines in file ";
-        Bukkit.getConsoleSender().sendMessage(PREFIX2 + msg + " §e" + fileName);
+                "§aDodano brakujące linijki w pliku językowym:" :
+                "§aAdded missing lines in the language file" ;
+        Bukkit.getConsoleSender().sendMessage(PREFIX2 + " " + msg + " §e" + fileName);
     }
 
     public void sendLangUpdateError(String fileName, String error) {
         String msg = getLang().equalsIgnoreCase("pl") ?
-                "§cNie można było zaktualizować pliku językowego (" + fileName + "): " :
-                "§cCould not update language file (" + fileName + "): ";
-        plugin.getLogger().severe(msg + error);
+                "§cNie udało się zaktualizować pliku językowego (" + fileName + "):" :
+                "§cFailed to update language file (" + fileName + "): ";
+        plugin.getLogger().severe(msg + " " + error);
     }
 
     public void sendUpdateNotice(CommandSender target, String version) {
-        String title = getLang().equalsIgnoreCase("pl") ? "§eDostępna jest nowa wersja AstraLogicGates: §fv" : "§eA new version of AstraLogicGates is available: §fv";
+        String title = getLang().equalsIgnoreCase("pl") ? "§eDostępna jest nowa wersja AstraRedstoneSystems: §fv" : "§eA new version of AstraLogicGates is available: §fv";
         String download = getLang().equalsIgnoreCase("pl") ? "§aPobierz: " : "§aDownload: ";
         target.sendMessage("");
         target.sendMessage("§7------------ " + PREFIX2 + " §7------------");
         target.sendMessage(title + version);
-        target.sendMessage(download + "§f§nhttps://modrinth.com/plugin/astralogicgates/version/" + version);
+        target.sendMessage(download + "§f§nhttps://modrinth.com/plugin/astraredstonesystems/version/" + version);
         target.sendMessage("§7----------------------------------------------");
         target.sendMessage("");
     }

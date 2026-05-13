@@ -1,4 +1,4 @@
-package pl.dawcou.AstraLogicGates.gates;
+package pl.dawcou.AstraRedstoneSystems.gates;
 
 import org.bukkit.Location;
 import org.bukkit.block.Block;
@@ -10,17 +10,17 @@ import org.bukkit.scheduler.BukkitTask;
 import java.util.HashMap;
 import java.util.Map;
 
-import pl.dawcou.AstraLogicGates.AstraLogicGates;
-import pl.dawcou.AstraLogicGates.GateValidator;
-import pl.dawcou.AstraLogicGates.GateUtils;
+import pl.dawcou.AstraRedstoneSystems.AstraRS;
+import pl.dawcou.AstraRedstoneSystems.GateValidator;
+import pl.dawcou.AstraRedstoneSystems.GateUtils;
 
 public class TimeGates {
 
-    private final AstraLogicGates plugin;
+    private final AstraRS plugin;
     private final GateValidator validator;
     private final Map<String, BukkitTask> repeaterTasks = new HashMap<>();
 
-    public TimeGates(AstraLogicGates plugin, GateValidator validator) {
+    public TimeGates(AstraRS plugin, GateValidator validator) {
         this.plugin = plugin;
         this.validator = validator;
     }

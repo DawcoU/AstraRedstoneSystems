@@ -1,4 +1,4 @@
-package pl.dawcou.AstraLogicGates;
+package pl.dawcou.AstraRedstoneSystems;
 
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -7,9 +7,9 @@ import java.io.IOException;
 
 public class GateConverter {
 
-    private final AstraLogicGates plugin;
+    private final AstraRS plugin;
 
-    public GateConverter(AstraLogicGates plugin) {
+    public GateConverter(AstraRS plugin) {
         this.plugin = plugin;
     }
 

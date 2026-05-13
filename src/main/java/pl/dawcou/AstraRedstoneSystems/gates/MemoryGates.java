@@ -1,4 +1,4 @@
-package pl.dawcou.AstraLogicGates.gates;
+package pl.dawcou.AstraRedstoneSystems.gates;
 
 import org.bukkit.Location;
 import org.bukkit.block.Block;
@@ -6,16 +6,16 @@ import org.bukkit.block.BlockFace;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 
-import pl.dawcou.AstraLogicGates.AstraLogicGates;
-import pl.dawcou.AstraLogicGates.GateValidator;
-import pl.dawcou.AstraLogicGates.GateUtils;
+import pl.dawcou.AstraRedstoneSystems.AstraRS;
+import pl.dawcou.AstraRedstoneSystems.GateValidator;
+import pl.dawcou.AstraRedstoneSystems.GateUtils;
 
 public class MemoryGates {
 
-    private final AstraLogicGates plugin;
+    private final AstraRS plugin;
     private final GateValidator validator;
 
-    public MemoryGates(AstraLogicGates plugin, GateValidator validator) {
+    public MemoryGates(AstraRS plugin, GateValidator validator) {
         this.plugin = plugin;
         this.validator = validator;
     }
@@ -51,7 +51,6 @@ public class MemoryGates {
 
             boolean oldState = config.getBoolean(path + ".state", false);
             boolean newState = oldState;
-            boolean isMemoryType = true;
 
             // --- PARTICLE STATUSU ---
             if (type.matches("LATCH|MEMORY_CELL|MEMORY_READ|TFF|TFF")) {
@@ -93,10 +92,9 @@ public class MemoryGates {
                     }
                     config.set(path + ".lastInput", pBack);
                 }
-                default -> isMemoryType = false;
             }
 
-            if (isMemoryType && newState != oldState) {
+            if (newState != oldState) {
                 config.set(path + ".state", newState);
                 GateUtils.updateOutput(plugin, path, target, newState);
             }

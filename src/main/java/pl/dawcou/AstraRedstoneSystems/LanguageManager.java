@@ -1,4 +1,4 @@
-package pl.dawcou.AstraLogicGates;
+package pl.dawcou.AstraRedstoneSystems;
 
 import org.bukkit.ChatColor;
 import org.bukkit.configuration.ConfigurationSection;
@@ -76,12 +76,12 @@ public class LanguageManager {
     }
 
     public String getWithPrefix(String path) {
-        return AstraLogicGates.PREFIX + " " + getMessage(path);
+        return AstraRS.PREFIX + " " + getMessage(path);
     }
 
     // Metoda z placeholderem (np. do {COUNT})
     public String getWithPrefix(String path, String placeholder, String value) {
         String msg = getMessage(path).replace(placeholder, value);
-        return AstraLogicGates.PREFIX + " " + msg;
+        return AstraRS.PREFIX + " " + msg;
     }
 }

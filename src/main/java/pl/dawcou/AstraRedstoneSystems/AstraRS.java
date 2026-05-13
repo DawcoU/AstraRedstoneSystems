@@ -1,4 +1,4 @@
-package pl.dawcou.AstraLogicGates;
+package pl.dawcou.AstraRedstoneSystems;
 
 import net.md_5.bungee.api.ChatColor;
 import org.bukkit.Bukkit;
@@ -8,7 +8,6 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
-import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
@@ -16,16 +15,20 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.jetbrains.annotations.NotNull;
-import pl.dawcou.AstraLogicGates.gates.*;
+import pl.dawcou.AstraRedstoneSystems.gates.*;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
-public class AstraLogicGates extends JavaPlugin implements CommandExecutor, TabCompleter {
+public class AstraRS extends JavaPlugin implements CommandExecutor, TabCompleter {
 
-    public static final String PREFIX = ChatColor.of("#FF0000") + "[" + ChatColor.of("#00D5FF") + "Astra" + ChatColor.of("#FFFFFF") + "Logic" + ChatColor.of("#FF0000") + "]";
-    public static final String PREFIX2 = "§c[§bAstra§fLogic§c]";
+    public static final String PREFIX = ChatColor.of("#3277e6") + "["
+            + ChatColor.of("#F2F2F2") + "Astra"
+            + ChatColor.of("#FF2E2E") + "RS"
+            + ChatColor.of("#3277e6") + "]";
+
+    public static final String PREFIX2 = "§9[§fAstra§cRS§9]";
 
     private File gatesFile;
     private FileConfiguration gatesConfig;
@@ -36,6 +39,7 @@ public class AstraLogicGates extends JavaPlugin implements CommandExecutor, TabC
     private MemoryGates memoryGates;
     private TimeGates timeGates;
     private NumberGates numberGates;
+    private SpaceGates spaceGates;
 
     private LanguageManager languageManager;
     private NoticeManager noticeManager;
@@ -54,6 +58,10 @@ public class AstraLogicGates extends JavaPlugin implements CommandExecutor, TabC
 
     public GateValidator getValidator() { return gateValidator; }
 
+    public FileConfiguration getGatesConfig() {
+        return gatesConfig;
+    }
+
     public Map<UUID, Location> getLinkingSession() {
         return this.linkingSession;
     }
@@ -67,6 +75,7 @@ public class AstraLogicGates extends JavaPlugin implements CommandExecutor, TabC
         this.memoryGates = new MemoryGates(this, gateValidator);
         this.timeGates = new TimeGates(this, gateValidator);
         this.numberGates = new NumberGates(this, gateValidator);
+        this.spaceGates = new SpaceGates(this, gateValidator);
 
         SelectionManager selectionManager = new SelectionManager(this);
         FilesUpdater updater = new FilesUpdater(this);
@@ -92,43 +101,37 @@ public class AstraLogicGates extends JavaPlugin implements CommandExecutor, TabC
             cmdBramka.setTabCompleter(this);
         }
 
-        var cmdAlg = getCommand("astralogicgates");
+        var cmdAlg = getCommand("astraredstonesystems");
         if (cmdAlg != null) {
             cmdAlg.setExecutor(commandHandler);
             cmdAlg.setTabCompleter(commandHandler);
         }
 
-        getServer().getScheduler().runTaskTimer(this, () -> {
-            FileConfiguration config = getGatesConfig();
-            ConfigurationSection gates = config.getConfigurationSection("gates");
+        Bukkit.getGlobalRegionScheduler().runAtFixedRate(this, (task) -> {
 
-            // 1. NAJPIERW: Zerujemy wszystkie wyjścia CABLE_DATA w configu (tylko w pamięci RAM)
-            if (gates != null) {
-                for (String key : gates.getKeys(false)) {
-                    if ("CABLE_DATA".equals(gates.getString(key + ".type"))) {
-                        gates.set(key + ".current_out", 0);
-                    }
-                }
-            }
+            GateUtils.syncLinks(this);
 
-            // Odpalamy logikę bramek podstawowych
+            // 2. Bardzo ważna kolejność!
+            // Najpierw źródła liczb, potem kable, na końcu reszta.
+            numberGates.runNumberGates(); // Tu siedzą Number_gate i CABLE_DATA
+
             basicGates.runBasicGates();
             memoryGates.runMemoryGates();
             timeGates.runTimeGates();
-            numberGates.runNumberGates();
+            spaceGates.runSpaceGates();
             
         }, 20L, 1L);
 
-        Bukkit.getScheduler().runTaskTimerAsynchronously(this, () -> {
+        Bukkit.getGlobalRegionScheduler().runAtFixedRate(this, (task) -> {
             saveGates();
-        }, 6000L, 6000L); // 20 ticków * 60 sek * 5 min = 6000 ticków
+        }, 1200L, 1200L);
 
         noticeManager.sendStartupLogo();
 
-        getServer().getScheduler().runTaskAsynchronously(this, () -> {
+        this.getServer().getAsyncScheduler().runNow(this, task -> {
             if (getConfig().getBoolean("check-updates", true)) {
                 new UpdateChecker(this).getVersion(version -> {
-                    String currentVersion = this.getPluginMeta().getVersion();
+                    String currentVersion = this.getDescription().getVersion();
                     if (currentVersion.equals(version)) {
                         noticeManager.sendVersionOk(version);
                     } else if (currentVersion.compareTo(version) > 0) {
@@ -161,10 +164,6 @@ public class AstraLogicGates extends JavaPlugin implements CommandExecutor, TabC
         gatesConfig = YamlConfiguration.loadConfiguration(gatesFile);
     }
 
-    public FileConfiguration getGatesConfig() {
-        return gatesConfig;
-    }
-
     public void saveGates() {
         synchronized (this.gatesConfig) {
             try {
@@ -180,7 +179,7 @@ public class AstraLogicGates extends JavaPlugin implements CommandExecutor, TabC
         if (!(sender instanceof Player player)) return true;
 
         if (label.equalsIgnoreCase("bramka")) {
-            if (!player.hasPermission("astralogicgates.gates")) {
+            if (!player.hasPermission("astrars.gates")) {
                 player.sendMessage(this.getLanguageManager().getWithPrefix("no-permission"));
                 return true;
             }
@@ -193,46 +192,39 @@ public class AstraLogicGates extends JavaPlugin implements CommandExecutor, TabC
             String type = args[1].toUpperCase();
             Material mat = switch (category) {
                 case "logic" -> switch (type) {
-                    case "NOT" -> Material.RED_CONCRETE;
-                    case "AND" -> Material.ORANGE_CONCRETE;
-                    case "OR" -> Material.YELLOW_CONCRETE;
-                    case "NOR" -> Material.GRAY_CONCRETE;
-                    case "NAND" -> Material.PINK_CONCRETE;
-                    case "XOR" -> Material.PURPLE_CONCRETE;
-                    case "XNOR" -> Material.MAGENTA_CONCRETE;
-                    case "NIMPLY", "IMPLY" -> Material.BROWN_CONCRETE;
-                    case "BUFFER" -> Material.ORANGE_CONCRETE;
+                    case "NOT", "NOR" -> Material.RED_CONCRETE;
+                    case "AND", "OR", "BUFFER" -> Material.YELLOW_CONCRETE;
+                    case "NAND", "XNOR", "NIMPLY" -> Material.ORANGE_CONCRETE;
+                    case "XOR", "IMPLY", "MUX" -> Material.LIME_CONCRETE;
+                    case "SYNCHRONIZER" -> Material.BROWN_CONCRETE;
                     default -> null;
                 };
                 case "memory" -> switch (type) {
-                    case "LATCH" -> Material.WHITE_CONCRETE;
+                    case "LATCH" -> Material.CYAN_CONCRETE;
                     case "TFF" -> Material.LIGHT_BLUE_CONCRETE;
                     case "MEMORY_CELL", "MEMORY_READ" -> Material.BLUE_CONCRETE;
                     default -> null;
                 };
                 case "numbers" -> switch (type) {
-                    case "COUNTER" -> Material.IRON_BLOCK;
-                    case "NUMBER_GATE" -> Material.YELLOW_CONCRETE;
-                    case "BOOLEAN_GATE" -> Material.ORANGE_CONCRETE;
-                    case "VARIABLE_GATE" -> Material.RED_CONCRETE;
                     case "MATH" -> Material.BLUE_CONCRETE;
+                    case "COUNTER" -> Material.LIGHT_GRAY_CONCRETE;
                     case "COMPARATOR", "DECODER" -> Material.GRAY_CONCRETE;
-                    case "LINKER" -> Material.CYAN_CONCRETE;
+                    case "CABLE_DATA" -> Material.BLACK_CONCRETE;
                     case "RANDOM_BOOLEAN", "RANDOM_NUMBER" -> Material.CYAN_CONCRETE;
-                    case "CABLE_DATA" -> Material.BLACK_WOOL;
+                    case "NUMBER_GATE", "BOOLEAN_GATE", "VARIABLE_GATE" -> Material.BROWN_CONCRETE;
+                    case "DISPLAY" -> Material.WHITE_CONCRETE;
                     default -> null;
                 };
                 case "space" -> switch (type) {
-                    case "SENDER" -> Material.GOLD_BLOCK;
-                    case "RECEIVER" -> Material.EMERALD_BLOCK;
-                    case "SENSOR" -> Material.LAPIS_BLOCK;
+                    case "SENDER" -> Material.MAGENTA_CONCRETE;
+                    case "RECEIVER" -> Material.PURPLE_CONCRETE;
+                    case "SENSOR" -> Material.PINK_CONCRETE;
                     default -> null;
                 };
                 case "time" -> switch (type) {
                     case "CLOCK" -> Material.GREEN_CONCRETE;
                     case "CLOCK_GATE" -> Material.LIME_CONCRETE;
                     case "REPEATER" -> Material.YELLOW_CONCRETE;
-                    case "SYNCHRONIZER" -> Material.RED_CONCRETE;
                     default -> null;
                 };
                 default -> null;
@@ -460,12 +452,12 @@ public class AstraLogicGates extends JavaPlugin implements CommandExecutor, TabC
             } else if (args.length == 2) {
                 List<String> types = switch (args[0].toLowerCase()) {
                     case "logic" ->
-                            Arrays.asList("NOT", "AND", "OR", "NOR", "NAND", "XOR", "XNOR", "NIMPLY", "IMPLY", "BUFFER");
+                            Arrays.asList("NOT", "AND", "OR", "NOR", "NAND", "XOR", "XNOR", "NIMPLY", "IMPLY", "BUFFER", "MUX", "SYNCHRONIZER");
                     case "memory" -> Arrays.asList("LATCH", "TFF", "MEMORY_CELL", "MEMORY_READ");
                     case "numbers" ->
-                            Arrays.asList("COUNTER", "RANDOM_BOOLEAN", "RANDOM_NUMBER", "NUMBER_GATE", "BOOLEAN_GATE", "VARIABLE_GATE", "MATH", "COMPARATOR", "DECODER", "LINKER", "CABLE_DATA");
+                            Arrays.asList("COUNTER", "RANDOM_BOOLEAN", "RANDOM_NUMBER", "NUMBER_GATE", "BOOLEAN_GATE", "VARIABLE_GATE", "MATH", "COMPARATOR", "DECODER", "LINKER", "CABLE_DATA", "DISPLAY");
                     case "space" -> Arrays.asList("SENDER", "RECEIVER", "SENSOR");
-                    case "time" -> Arrays.asList("CLOCK", "CLOCK_GATE", "REPEATER", "SYNCHRONIZER");
+                    case "time" -> Arrays.asList("CLOCK", "CLOCK_GATE", "REPEATER");
                     default -> Collections.emptyList();
                 };
                 types.forEach(t -> {

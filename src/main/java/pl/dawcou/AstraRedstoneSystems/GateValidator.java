@@ -1,12 +1,12 @@
-package pl.dawcou.AstraLogicGates;
+package pl.dawcou.AstraRedstoneSystems;
 
 import org.bukkit.configuration.file.FileConfiguration;
 
 public class GateValidator {
 
-    private final AstraLogicGates plugin;
+    private final AstraRS plugin;
 
-    public GateValidator(AstraLogicGates plugin) {
+    public GateValidator(AstraRS plugin) {
         this.plugin = plugin;
     }
 

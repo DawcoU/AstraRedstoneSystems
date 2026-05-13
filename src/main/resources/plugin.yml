@@ -1,24 +1,27 @@
-name: AstraLogicGates
+name: AstraRedstoneSystems
 version: '${version}'
 
-main: pl.dawcou.AstraLogicGates.AstraLogicGates
-api-version: '1.18'
+main: pl.dawcou.AstraRedstoneSystems.AstraRS
+api-version: '1.20'
 load: POSTWORLD
 commands:
   bramka:
     description: Komenda do brania bramek logicznych
     aliases: [gate, logicgate, bramkalogiczna]
-  astralogicgates:
+  astraredstonesystems:
     description: Główna komenda pluginu
-    aliases: [alg]
+    aliases: [ars]
 
 permissions:
-  astralogicgates.gates:
+  astrars.gates:
     description: Pozwala używać komendy /bramka
     default: op
-  astralogicgates.admin:
+  astrars.admin:
     description: Pozwala używać komendy /alg link
     default: op
-  astralogicgates.reload:
-    description: Pozwala używać komendy /astralogicgates reload
+  astrars.update:
+    description: Wyświetla powiadomenia o nowej wersji
+    default: op
+  astrars.reload:
+    description: Pozwala używać komendy /ars reload
     default: op

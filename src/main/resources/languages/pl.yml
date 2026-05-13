@@ -1,6 +1,6 @@
 # #############################################################
 # #                                                           #
-# #                AstraLogicGates - Plik Językowy            #
+# #                AstraRedstoneSystems - Plik Językowy       #
 # #                     Język: Polski (PL)                    #
 # #                                                           #
 # #############################################################
@@ -47,26 +47,29 @@ messages:
   power-block-break-deny: "&cTo jest blok zasilający wyjście bramki!"
   gate-placed: "&aPostawiono bramkę &e{TYPE} &6Wyjście: &e{OUT}"
 
-  # Tryb edycji
-  edit-mode-start: "&aWszedłeś w tryb edycji bramki &e{TYPE}"
-  edit-limit-info: "&7Wpisz na czacie: &6limit: <liczba 1-100> &7(Obecnie: {CURRENT})"
-  edit-range-info: "&7Wpisz na czacie: &6zasięg: <liczba 1-15> &7(Obecnie: {CURRENT})"
-  edit-time-info: "&7Wpisz na czacie: &6czas: <liczba>s &7lub &6<liczba>t"
-  edit-cancel-info: "&7Wpisz &6anuluj&7, aby wyjść bez zmian."
-  edit-cancelled: "&cEdycja anulowana"
+  # --- Tryb Edycji Bramek ---
+  edit-mode-start: "&7Wszedłeś w tryb edycji bramki: &6{TYPE}"
+  edit-cancelled: "&cEdycja została anulowana."
+  edit-unknown-command: "&cNieznana komenda edycji! Wpisz &7anuluj&c, aby wyjść."
+  edit-format-error: "&cBłąd! Podana wartość musi być liczbą."
 
-  # Wyniki edycji
-  limit-set: "&aUstawiono limit na: &e{VAL}"
-  limit-range-error: "&cLimit musi być w przedziale 1-100!"
-  limit-format-error: "&cBłędny format! Użyj: limit: <liczba>"
+  # Instrukcje wyświetlane po kliknięciu (bez prefixu zazwyczaj)
+  edit-value-info: "&7Wpisz: &fwartosc: <liczba>"
+  edit-mode-info: "&7Wpisz: &ftryb: <ADD|SUB|MUL|DIV|POW> &7lub &f<==|>|<|>=|!=|...>"
+  edit-random-info: "&7Wpisz: &fmin: <liczba> &7lub &fmax: <liczba>"
+  edit-limit-info: "&7Wpisz: &flimit: <liczba> &8(Obecnie: {CURRENT})"
+  edit-range-info: "&7Wpisz: &fzasieg: <liczba> &8(Obecnie: {CURRENT})"
+  edit-time-info: "&7Wpisz: &fczas: <liczba>s &7lub &f<liczba>t"
+  edit-cancel-info: "&7Wpisz &canuluj&7, aby wyjść bez zmian."
 
-  range-set: "&aUstawiono zasięg na: &e{VAL} bloków"
-  range-range-error: "&cZasięg musi być w przedziale 1-15!"
-  range-format-error: "&cBłędny format! Użyj: zasięg: <liczba>"
-
-  time-set: "&aUstawiono czas na: &e{VAL}t"
-  time-unit-error: "&cDodaj 's' (sekundy) lub 't' (ticki)!"
-  time-format-error: "&cBłędny format czasu!"
+  # Potwierdzenia zmian
+  value-set: "&7Ustawiono nową wartość: &f{VAL}"
+  mode-set: "&7Ustawiono tryb operacji: &f{MODE}"
+  limit-set: "&7Ustawiono limit licznika: &f{VAL}"
+  min-set: "&7Ustawiono minimum: &f{VAL}"
+  max-set: "&7Ustawiono maksimum: &f{VAL}"
+  time-set: "&7Ustawiono czas: &f{VAL}"
+  range-set: "&7Ustawiono zasięg czujnika: &f{VAL}"
 
   # Zaznaczanie
   receive-selector: "&aOtrzymałeś Selektor Bramek!"
@@ -75,9 +78,16 @@ messages:
   both-positions-required: "&cMusisz najpierw zaznaczyć oba punkty!"
   cut-out-area: "&aWycięto obszar, Usunięto §f{COUNT} &abramek logicznych"
 
+  # Kopiowanie wklejanie obracanie i cofnięcia
   copy-success: "&aSkopiowano &e{COUNT} &abramek do schowka!"
   clipboard-empty: "&cTwój schowek jest pusty! Najpierw użyj /alg copy"
   paste-success: "&aPomyślnie wklejono &e{COUNT} &abramek!"
+  rotate-success: "&7Obrócono zawartość schowka o &f{DEGREE} &7stopni"
+  invalid-rotate-angle: "&cNieprawidłowy kąt! Użyj 90, -90 lub 180"
+  undo-success: "&aCofnięto ostatnie wklejanie (&7{COUNT} bramek&a)"
+  nothing-to-undo: "&cNie masz nic do cofnięcia!"
+  redo-success: "&ePrzywrócono ostatnie cofnięcie (&7{COUNT} &ebramek)"
+  nothing-to-redo: "&cNie masz nic do przywrócenia (Redo)!"
 
   # Inne
   gate-received: "&aOtrzymałeś bramkę: &e{TYPE}"

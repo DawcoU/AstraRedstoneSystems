@@ -1,9 +1,9 @@
-# 🌌 AstraLogicGates
+# 🌌 AstraRedstoneSystems
 **Build complex redstone systems without cables using logic blocks, memory, timers, wireless signals and data processing.**
 
-Created and maintained by **DawcoU** 👨‍💻
+Created and maintained by **DawcoU** 👨–
 
-AstraLogicGates is a powerful tool for technical players and map makers, allowing you to create complex Redstone mechanisms using dedicated logic blocks. Written in **Java 17** and optimized specifically for **Spigot** (and its forks) to ensure maximum performance and tick-accuracy. ⚡
+AstraRedstoneSystems is a powerful tool for technical players and map makers, allowing you to create complex Redstone mechanisms using dedicated logic blocks. Written in **Java 17** and optimized specifically for **Paper** (and its forks) to ensure maximum performance and tick-accuracy. ⚡
 
 ---
 
@@ -20,9 +20,9 @@ AstraLogicGates is a powerful tool for technical players and map makers, allowin
 
 | Command | Description | Permission |
 | :--- | :--- | :--- |
-| `/bramka <category> <type>` | Receive a specific logic gate block | `astralogicgates.gates` |
-| `/bramka <category> <type> <param>` | Receive a gate with parameter (e.g. `DECODER 5`) | `astralogicgates.gates` |
-| `/alg link` | Link two gates to transfer data wirelessly | `astralogicgates.admin` |
+| `/bramka <category> <type>` | Receive a specific logic gate block | `astrars.gates` |
+| `/bramka <category> <type> <param>` | Receive a gate with parameter (e.g. `DECODER 5`) | `astrars.gates` |
+| `/alg link` | Link two gates to transfer data wirelessly | `astrars.admin` |
 
 ---
 
@@ -32,13 +32,13 @@ AstraLogicGates is a powerful tool for technical players and map makers, allowin
 * Use the command `/bramka <category> <type>` (e.g., `/bramka logic AND`) to receive a logic block.
 * Place the block on the ground. The output will face the **direction you were looking** when placing it.
 * **Input/Output Sides:** * **Back/Sides:** Inputs for signal or data.
-    * **Front:** Main output (faces away from you during placement).
+  * **Front:** Main output (faces away from you during placement).
 
 **2. Data & Math Gates (Kalkulator System):**
 These gates don't just send ON/OFF signals, they send **numbers**! 🔢
 
 * **VARIABLE_GATE:** Stores a number. It sends its value to the output immediately when it receives it. Perfect for memory in a calculator.
-* **MATH_GATE:** Has two modes: `ADD` and `SUB`. Connect data to the **left** and **right** side to perform calculations.
+* **MATH_GATE:** Has modes like `ADD`, `SUB`, `MUL`, `DIV` and `POW`. Connect data to the **left** and **right** side to perform calculations.
 * **COMPARATOR:** Compares two numbers. Modes: `==`, `>`, `<`, `>=`, `<=`, `!=`. If the condition is met, it outputs a Redstone signal.
 * **NUMBER_GATE:** A fixed value block. When powered from the back, it sends its preset number forward.
 * **BOOLEAN_GATE:** The bridge between Redstone and Data. It converts a standard signal into numbers: ON = 1, OFF = 0. Fully compatible with Math and Variable gates!
@@ -67,12 +67,12 @@ Want to connect a `NUMBER_GATE` to a `MATH_GATE` 50 blocks away? Use the Linking
 
 # Links 💾
 
-**GitHub AstraLogicGates** [https://github.com/DawcoU/AstraLogicGates](https://github.com/DawcoU/AstraLogicGates) 🖥️
+**GitHub AstraRedstoneSystems:** [https://github.com/DawcoU/AstraRedstoneSystems](https://github.com/DawcoU/AstraRedstoneSystems) 🖥️
 
 ---
 
 ### 🌐 Support & Community
-If you need help, want to report a bug, or follow the development by **DawcoU**, join our Discord: [[https://discord.gg/XcmcPMJZMT](https://discord.gg/XcmcPMJZMT)] 💬
+If you need help, want to report a bug, or follow the development by **DawcoU**, join our Discord: [https://discord.gg/XR9UUjZv](https://discord.gg/XR9UUjZv) 💬
 
 ---
-_AstraLogicGates - Making Redstone Smart. ⚡_
+_AstraRedstoneSystems - Making Redstone Smart. ⚡_
