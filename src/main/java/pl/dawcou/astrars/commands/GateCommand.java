@@ -1,195 +1,40 @@
-package pl.dawcou.AstraRedstoneSystems.system;
+package pl.dawcou.astrars.commands;
 
-import org.bstats.bukkit.Metrics;
-import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
-import org.bukkit.configuration.file.FileConfiguration;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
-import org.bukkit.plugin.java.JavaPlugin;
 import org.jetbrains.annotations.NotNull;
+import pl.dawcou.astrars.AstraRS;
 
-import pl.dawcou.AstraRedstoneSystems.gates.GateListener;
-import pl.dawcou.AstraRedstoneSystems.file.FilesConverter;
-import pl.dawcou.AstraRedstoneSystems.file.FilesUpdater;
-import pl.dawcou.AstraRedstoneSystems.gates.types.*;
-import pl.dawcou.AstraRedstoneSystems.utils.GateValidator;
-import pl.dawcou.AstraRedstoneSystems.utils.SelectionManager;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
-import java.io.File;
-import java.io.IOException;
-import java.util.*;
+public class GateCommand implements CommandExecutor, TabCompleter {
 
-public class AstraRS extends JavaPlugin implements CommandExecutor, TabCompleter {
+    private final AstraRS plugin;
 
-    public static final String PREFIX = "<#3277e6>[</#3277e6><gradient:#F2F2F2:#F2F2F2:#FF2E2E:#FF2E2E>AstraRS</gradient><#3277e6>]</#3277e6>";
-    public static final String PREFIX2 = "§9[§fAstra§4RS§9]";
-    public static final String DEBUG_PREFIX = PREFIX2 + " §b[§eDebug§b] ";
-
-    private File gatesFile;
-    private FileConfiguration gatesConfig;
-
-    private GateValidator gateValidator;
-    private BasicGates basicGates;
-    private MemoryGates memoryGates;
-    private TimeGates timeGates;
-    private NumberGates numberGates;
-    private StringGates stringGates;
-    private DataGates dataGates;
-    private SpaceGates spaceGates;
-
-    private LanguageManager languageManager;
-    private NoticeManager noticeManager;
-
-    public LanguageManager getLanguageManager() {
-        return languageManager;
-    }
-
-    public NoticeManager getNoticeManager() {
-        return noticeManager;
-    }
-
-    public FileConfiguration getGatesConfig() {
-        return gatesConfig;
-    }
-
-    @Override
-    public void onEnable() {
-        int pluginId = 31505;
-        Metrics metrics = new Metrics(this, pluginId);
-
-        this.gateValidator = new GateValidator();
-        this.noticeManager = new NoticeManager(this);
-        this.languageManager = new LanguageManager(this);
-
-        this.basicGates = new BasicGates(this, gateValidator);
-        this.memoryGates = new MemoryGates(this, gateValidator);
-        this.timeGates = new TimeGates(this, gateValidator);
-        this.numberGates = new NumberGates(this, gateValidator);
-        this.stringGates = new StringGates(this, gateValidator);
-        this.dataGates = new DataGates(this, gateValidator);
-        this.spaceGates = new SpaceGates(this, gateValidator);
-
-        SelectionManager selectionManager = new SelectionManager(this);
-        FilesUpdater updater = new FilesUpdater(this);
-        CommandManager commandHandler = new CommandManager (this, selectionManager);
-
-        new FilesConverter(this).runAllMigrations();
-
-        saveDefaultConfig();
-        createGatesConfig();
-
-        updater.check();
-
-        this.languageManager.reload();
-
-        // 2. Rejestrujemy TĘ SAMĄ instancję do eventów
-        getServer().getPluginManager().registerEvents(selectionManager, this);
-        getServer().getPluginManager().registerEvents(new GateListener(this), this);
-
-        var cmdBramka = getCommand("bramka");
-        if (cmdBramka != null) {
-            cmdBramka.setExecutor(this);
-            cmdBramka.setTabCompleter(this);
-        }
-
-        var cmdAlg = getCommand("astraredstonesystems");
-        if (cmdAlg != null) {
-            cmdAlg.setExecutor(commandHandler);
-            cmdAlg.setTabCompleter(commandHandler);
-        }
-
-        Bukkit.getScheduler().runTaskTimer(this, (task) -> {
-
-            numberGates.runNumberGates();
-            stringGates.runStringGates();
-            dataGates.runDataGates();
-
-            basicGates.runBasicGates();
-            memoryGates.runMemoryGates();
-            timeGates.runTimeGates();
-            spaceGates.runSpaceGates();
-            
-        }, 1L, 1L);
-
-        Bukkit.getScheduler().runTaskTimer(this, (task) -> {
-            saveGates();
-        }, 6000L, 6000L);
-
-        // Odpalamy scheduler asynchroniczny, który najpierw sprawdzi internet, a na koniec wypluje logo i status wersji!
-        Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
-
-            // Najpierw sprawdzamy aktualizacje, jeśli opcja jest włączona
-            if (getConfig().getBoolean("settings.check-updates", true)) {
-                new UpdateChecker(this).getVersion(version -> {
-                    String currentVersion = this.getDescription().getVersion();
-
-                    // 1. NAJPIERW DRUKUJEMY LOGO (Zawsze jako pierwsze, niezależnie od wyniku sieci)
-                    noticeManager.sendStartupLogo();
-
-                    // 2. ZARAZ POD LOGO DORZUCAMY INFO O WERSJI
-                    if (currentVersion.equals(version)) {
-                        noticeManager.sendVersionOk(version);
-                    } else if (currentVersion.compareTo(version) > 0) {
-                        noticeManager.sendDevNotice(currentVersion, version);
-                    } else {
-                        noticeManager.sendUpdateNotice(Bukkit.getConsoleSender(), version);
-                    }
-                });
-            } else {
-                // Jeśli admin wyłączył sprawdzanie aktualizacji, po prostu drukujemy samo logo!
-                noticeManager.sendStartupLogo();
-            }
-        });
-    }
-
-    @Override
-    public void onDisable() {
-        // Zapisanie danych bramek z pamięci RAM na dysk
-        saveGates();
-
-        noticeManager.sendShutdownLogo();
-    }
-
-    private void createGatesConfig() {
-        gatesFile = new File(getDataFolder(), "logic_gates.yml");
-        if (!gatesFile.exists()) {
-            if (gatesFile.getParentFile().mkdirs()) {
-                try {
-                    gatesFile.createNewFile();
-                } catch (IOException ignored) {}
-            }
-        }
-        gatesConfig = YamlConfiguration.loadConfiguration(gatesFile);
-    }
-
-    public void saveGates() {
-        synchronized (this.gatesConfig) {
-            try {
-                gatesConfig.save(gatesFile);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
+    public GateCommand(AstraRS plugin) {
+        this.plugin = plugin;
     }
 
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
         if (!(sender instanceof Player player)) return true;
 
-        if (label.equalsIgnoreCase("bramka")) {
+        if (label.equalsIgnoreCase("bramka") || label.equalsIgnoreCase("gate")) {
             if (!player.hasPermission("astrars.gates")) {
-                player.sendMessage(this.getLanguageManager().getWithPrefix("no-permission"));
+                player.sendMessage(plugin.getLanguageManager().getWithPrefix("general.no-permission"));
                 return true;
             }
             if (args.length < 2) {
-                player.sendMessage(this.getLanguageManager().getWithPrefix("usage-gate-command"));
+                player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.usage"));
                 return true;
             }
 
@@ -199,7 +44,7 @@ public class AstraRS extends JavaPlugin implements CommandExecutor, TabCompleter
             // --- DYNAMICZNE SPRAWDZENIE PERMISJI ---
             String permission = "astrars.gates." + category;
             if (!player.hasPermission(permission)) {
-                player.sendMessage(this.getLanguageManager().getWithPrefix("no-permission"));
+                player.sendMessage(plugin.getLanguageManager().getWithPrefix("general.no-permission"));
                 return true;
             }
 
@@ -209,7 +54,6 @@ public class AstraRS extends JavaPlugin implements CommandExecutor, TabCompleter
                     case "AND", "OR", "BUFFER" -> Material.YELLOW_CONCRETE;
                     case "NAND", "XNOR", "NIMPLY" -> Material.ORANGE_CONCRETE;
                     case "XOR", "IMPLY", "MUX" -> Material.LIME_CONCRETE;
-                    case "SYNCHRONIZER" -> Material.BROWN_CONCRETE;
                     default -> null;
                 };
                 case "memory" -> switch (type) {
@@ -218,7 +62,7 @@ public class AstraRS extends JavaPlugin implements CommandExecutor, TabCompleter
                     case "MEMORY_CELL" -> Material.BLUE_CONCRETE;
                     default -> null;
                 };
-                case "numbers" -> switch (type) {
+                case "number" -> switch (type) {
                     case "MATH", "DECIMAL_ACCUMULATOR" -> Material.BLUE_CONCRETE;
                     case "COUNTER" -> Material.LIGHT_GRAY_CONCRETE;
                     case "COMPARATOR", "DECODER" -> Material.GRAY_CONCRETE;
@@ -238,6 +82,7 @@ public class AstraRS extends JavaPlugin implements CommandExecutor, TabCompleter
                     case "DISK_GATE" -> Material.LIGHT_BLUE_CONCRETE;
                     case "RAM_GATE" -> Material.GREEN_CONCRETE;
                     case "BATTERY" -> Material.ORANGE_CONCRETE;
+                    case "DATA_DETECTOR" -> Material.LIME_CONCRETE;
                     default -> null;
                 };
                 case "space" -> switch (type) {
@@ -256,7 +101,7 @@ public class AstraRS extends JavaPlugin implements CommandExecutor, TabCompleter
             };
 
             if (mat == null) {
-                player.sendMessage(this.getLanguageManager().getWithPrefix("unknown-type-gate"));
+                player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate.unknown-type"));
                 return true;
             }
 
@@ -264,43 +109,42 @@ public class AstraRS extends JavaPlugin implements CommandExecutor, TabCompleter
             ItemMeta meta = item.getItemMeta();
             if (meta == null) return true;
 
-            // Pobieramy prefiks nazwy bramki z pliku językowego
-            String langPrefix = this.getLanguageManager().getMessage("gate-item-name-prefix");
+            String langPrefix = plugin.getLanguageManager().getMessage("gate.prefix-item");
             if (langPrefix == null || langPrefix.isEmpty()) {
-                langPrefix = "&4Bramka: &c"; // Bezpieczny backup
+                langPrefix = "&4Bramka: &c";
             }
 
-            // Budujemy pełną nazwę wyświetlaną (zmuszamy totoUpperCase, tak jak w dropie)
-            net.kyori.adventure.text.Component nameComponent = net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacyAmpersand()
-                    .deserialize(langPrefix + type.toUpperCase());
+            // Składamy tekst i zamieniamy kolory z & na §
+            String fullText = langPrefix + type.toUpperCase();
+            String coloredText = org.bukkit.ChatColor.translateAlternateColorCodes('&', fullText);
 
-            // BLOKADA POCHYLENIA TEKSTU – idealne dopasowanie do dropu
-            nameComponent = nameComponent.decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false);
-            meta.displayName(nameComponent);
+            // Usuwamy domyślne pochylenie (italic) w Minecraft za pomocą prefixu §r (reset formatting)
+            meta.setDisplayName("§r" + coloredText);
+            item.setItemMeta(meta);
 
-            // Ustawiamy puste lore, żeby meta nie różniła się strukturą od dropu bazowego
+            // Ustawiamy puste lore, żebym meta nie różniła się strukturą od dropu bazowego
             List<String> lore = new ArrayList<>();
 
             // --- ZASZYWANIE DANYCH LOGICZNYCH W PRZEDMIOCIE (PDC) ---
-            org.bukkit.NamespacedKey typeKey = new org.bukkit.NamespacedKey(this, "gate_type");
+            org.bukkit.NamespacedKey typeKey = new org.bukkit.NamespacedKey(plugin, "gate_type");
 
             meta.getPersistentDataContainer().set(typeKey, org.bukkit.persistence.PersistentDataType.STRING, type.toUpperCase());
 
             if (type.equals("SENDER") || type.equals("RECEIVER")) {
                 if (args.length < 3) {
-                    player.sendMessage(this.getLanguageManager().getWithPrefix("need-channel"));
+                    player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.need-channel"));
                     return true;
                 }
                 lore.add("§7Channel: §f" + args[2].replace(" ", ""));
 
             } else if (type.equals("NUMBER_GATE") || type.equals("DECODER")) {
                 if (args.length < 3) {
-                    player.sendMessage(this.getLanguageManager().getWithPrefix("provide-value"));
+                    player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.provide-value"));
                     return true;
                 }
 
                 if (!args[2].matches("-?\\d+")) {
-                    player.sendMessage(this.getLanguageManager().getWithPrefix("not-a-number"));
+                    player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.not-a-number"));
                     return true;
                 }
 
@@ -308,7 +152,7 @@ public class AstraRS extends JavaPlugin implements CommandExecutor, TabCompleter
 
             } else if (type.equals("RANDOM_NUMBER")) {
                 if (args.length < 3) {
-                    player.sendMessage(this.getLanguageManager().getWithPrefix("provide-range2"));
+                    player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.provide-range"));
                     return true;
                 }
 
@@ -324,12 +168,12 @@ public class AstraRS extends JavaPlugin implements CommandExecutor, TabCompleter
 
                             // BLOKADA UJEMNYCH I BŁĘDNYCH ZAKRESÓW
                             if (min < 0 || max < 0) {
-                                player.sendMessage(this.getLanguageManager().getWithPrefix("negative-number"));
+                                player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.negative-number"));
                                 return true;
                             }
 
                             if (min > max) {
-                                player.sendMessage(this.getLanguageManager().getWithPrefix("min-greater-than-max"));
+                                player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.min-greater-than-max"));
                                 return true;
                             }
 
@@ -337,11 +181,11 @@ public class AstraRS extends JavaPlugin implements CommandExecutor, TabCompleter
                             lore.add("§7max: §f" + max);
 
                         } catch (NumberFormatException e) {
-                            player.sendMessage(this.getLanguageManager().getWithPrefix("not-a-number"));
+                            player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.not-a-number"));
                             return true;
                         }
                     } else {
-                        player.sendMessage(this.getLanguageManager().getWithPrefix("wrong-format"));
+                        player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.wrong-format"));
                         return true;
                     }
                 } else {
@@ -350,7 +194,7 @@ public class AstraRS extends JavaPlugin implements CommandExecutor, TabCompleter
 
             } else if (type.equals("MATH")) {
                 if (args.length < 3) {
-                    player.sendMessage(this.getLanguageManager().getWithPrefix("provide-mode"));
+                    player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.provide-mode"));
                     return true;
                 }
 
@@ -386,14 +230,14 @@ public class AstraRS extends JavaPlugin implements CommandExecutor, TabCompleter
 
             } else if (type.equals("COMPARATOR")) {
                 if (args.length < 3) {
-                    player.sendMessage(this.getLanguageManager().getWithPrefix("provide-sign"));
+                    player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.provide-sign"));
                     return true;
                 }
 
                 String sign = args[2];
 
                 if (!sign.matches(">|<|==|!=|>=|<=")) {
-                    player.sendMessage(this.getLanguageManager().getWithPrefix("invalid-sign"));
+                    player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.invalid-sign"));
                     return true;
                 }
 
@@ -401,19 +245,19 @@ public class AstraRS extends JavaPlugin implements CommandExecutor, TabCompleter
 
             } else if (type.equals("COUNTER")) {
                 if (args.length < 3) {
-                    player.sendMessage(this.getLanguageManager().getWithPrefix("provide-limit"));
+                    player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.provide-limit"));
                     return true;
                 }
 
                 if (!args[2].matches("-?\\d+")) {
-                    player.sendMessage(this.getLanguageManager().getWithPrefix("not-a-number"));
+                    player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.not-a-number"));
                     return true;
                 }
 
                 int val = Integer.parseInt(args[2]);
 
                 if (val < 1 || val > 100) {
-                    player.sendMessage(this.getLanguageManager().getWithPrefix("limit-range"));
+                    player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.limit-range"));
                     return true;
                 }
 
@@ -421,19 +265,19 @@ public class AstraRS extends JavaPlugin implements CommandExecutor, TabCompleter
 
             } else if (type.equals("SENSOR")) {
                 if (args.length < 3) {
-                    player.sendMessage(this.getLanguageManager().getWithPrefix("provide-range"));
+                    player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.provide-range"));
                     return true;
                 }
 
                 if (!args[2].matches("-?\\d+")) {
-                    player.sendMessage(this.getLanguageManager().getWithPrefix("not-a-number"));
+                    player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.not-a-number"));
                     return true;
                 }
 
                 int val = Integer.parseInt(args[2]);
 
                 if (val < 1 || val > 15) {
-                    player.sendMessage(this.getLanguageManager().getWithPrefix("range-out-of-bounds"));
+                    player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.range-bounds"));
                     return true;
                 }
 
@@ -443,22 +287,22 @@ public class AstraRS extends JavaPlugin implements CommandExecutor, TabCompleter
                 boolean isClock = type.contains("CLOCK");
 
                 if (args.length < 3) {
-                    String msgKey = isClock ? "provide-frequency" : "provide-delay";
-                    player.sendMessage(this.getLanguageManager().getWithPrefix(msgKey));
+                    String msgKey = isClock ? "gate-cmd.provide-frequency" : "gate-cmd.provide-delay";
+                    player.sendMessage(plugin.getLanguageManager().getWithPrefix(msgKey));
                     return true;
                 }
 
                 String input = args[2].toLowerCase();
 
                 if (!input.endsWith("t") && !input.endsWith("s")) {
-                    player.sendMessage(this.getLanguageManager().getWithPrefix("provide-unit"));
+                    player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.provide-unit"));
                     return true;
                 }
 
                 String numStr = input.substring(0, input.length() - 1);
 
                 if (!numStr.matches("-?\\d+")) {
-                    player.sendMessage(this.getLanguageManager().getWithPrefix("invalid-time-format"));
+                    player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.invalid-time"));
                     return true;
                 }
 
@@ -467,14 +311,14 @@ public class AstraRS extends JavaPlugin implements CommandExecutor, TabCompleter
                 if (input.endsWith("t")) {
                     // Zegar i repeater mają ten sam limit od 1 ticka
                     if (val < 1 || val > 200) {
-                        String msgKey = isClock ? "ticks-range-clock" : "ticks-range-repeater";
-                        player.sendMessage(this.getLanguageManager().getWithPrefix(msgKey));
+                        String msgKey = isClock ? "gate-cmd.clock-ticks-range" : "gate-cmd.repeater-ticks-range";
+                        player.sendMessage(plugin.getLanguageManager().getWithPrefix(msgKey));
                         return true;
                     }
                 } else if (input.endsWith("s")) {
                     if (val < 1 || val > 10) {
-                        String msgKey = isClock ? "seconds-range-clock" : "seconds-range-repeater";
-                        player.sendMessage(this.getLanguageManager().getWithPrefix(msgKey));
+                        String msgKey = isClock ? "gate-cmd.clock-seconds-range" : "gate-cmd.repeater-seconds-range";
+                        player.sendMessage(plugin.getLanguageManager().getWithPrefix(msgKey));
                         return true;
                     }
                 }
@@ -483,7 +327,7 @@ public class AstraRS extends JavaPlugin implements CommandExecutor, TabCompleter
 
             } else if (type.equals("STRING_GATE") || type.equals("STRING_DECODER")) {
                 if (args.length < 3) {
-                    player.sendMessage(this.getLanguageManager().getWithPrefix("provide-text"));
+                    player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.provide-text"));
                     return true;
                 }
 
@@ -498,14 +342,14 @@ public class AstraRS extends JavaPlugin implements CommandExecutor, TabCompleter
 
             } else if (type.equals("STRING_COMPARATOR")) {
                 if (args.length < 3) {
-                    player.sendMessage(this.getLanguageManager().getWithPrefix("provide-string-mode"));
+                    player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.provide-string-mode"));
                     return true;
                 }
 
                 String mode = args[2].toUpperCase();
 
                 if (!mode.matches("==|EQUALS|EQUALS_IGNORE_CASE|=I|CONTAINS|STARTS_WITH|ENDS_WITH|EMPTY")) {
-                    player.sendMessage(this.getLanguageManager().getWithPrefix("invalid-string-sign"));
+                    player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.invalid-string-sign"));
                     return true;
                 }
 
@@ -524,7 +368,10 @@ public class AstraRS extends JavaPlugin implements CommandExecutor, TabCompleter
             meta.setLore(finalFormattedLore);
             item.setItemMeta(meta);
             player.getInventory().addItem(item);
-            player.sendMessage(this.getLanguageManager().getWithPrefix("gate-received", "{TYPE}", type));
+
+            player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate.received")
+                    .replace("%type%", type));
+
             return true;
         }
         return true;
@@ -535,20 +382,20 @@ public class AstraRS extends JavaPlugin implements CommandExecutor, TabCompleter
         List<String> hints = new ArrayList<>();
         if (command.getName().equalsIgnoreCase("bramka")) {
             if (args.length == 1) {
-                Arrays.asList("logic", "memory", "numbers", "string", "data", "space", "time").forEach(c -> {
+                Arrays.asList("logic", "memory", "number", "string", "data", "space", "time").forEach(c -> {
                     if (c.startsWith(args[0].toLowerCase())) hints.add(c);
                 });
             } else if (args.length == 2) {
                 List<String> types = switch (args[0].toLowerCase()) {
                     case "logic" ->
-                            Arrays.asList("NOT", "AND", "OR", "NOR", "NAND", "XOR", "XNOR", "NIMPLY", "IMPLY", "BUFFER", "MUX", "SYNCHRONIZER");
+                            Arrays.asList("NOT", "AND", "OR", "NOR", "NAND", "XOR", "XNOR", "NIMPLY", "IMPLY", "BUFFER", "MUX");
                     case "memory" -> Arrays.asList("LATCH", "TFF", "MEMORY_CELL");
-                    case "numbers" ->
+                    case "number" ->
                             Arrays.asList("COUNTER", "RANDOM_BOOLEAN", "RANDOM_NUMBER", "NUMBER_GATE", "BOOLEAN_GATE", "MATH", "DECIMAL_ACCUMULATOR", "COMPARATOR", "DECODER");
                     case "string" ->
                             Arrays.asList("STRING_GATE", "STRING_COMPARATOR", "STRING_DECODER");
                     case "data" ->
-                            Arrays.asList("CABLE_DATA", "DISPLAY", "TRANSISTOR", "DISK_GATE", "RAM_GATE", "BATTERY");
+                            Arrays.asList("CABLE_DATA", "DISPLAY", "TRANSISTOR", "DISK_GATE", "RAM_GATE", "BATTERY", "DATA_DETECTOR");
                     case "space" -> Arrays.asList("SENDER", "RECEIVER", "SENSOR");
                     case "time" -> Arrays.asList("CLOCK", "CLOCK_GATE", "REPEATER", "PULSER");
                     default -> Collections.emptyList();

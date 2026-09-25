@@ -1,14 +1,14 @@
 name: AstraRedstoneSystems
 version: '${version}'
-main: pl.dawcou.AstraRedstoneSystems.system.AstraRS
-api-version: '1.20'
+main: pl.dawcou.astrars.AstraRS
+api-version: '1.18'
 load: POSTWORLD
+author: DawcoU
+
 commands:
   bramka:
-    description: Komenda do brania bramek logicznych
-    aliases: [gate, logicgate, bramkalogiczna]
+    aliases: [gate]
   astraredstonesystems:
-    description: Główna komenda pluginu
     aliases: [ars]
 
 permissions:

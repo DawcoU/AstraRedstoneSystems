@@ -1,108 +1,111 @@
 # #############################################################
 # #                                                           #
-# #                AstraRedstoneSystems - Plik Językowy       #
+# #           AstraRedstoneSystems - Plik Językowy            #
 # #                     Język: Polski (PL)                    #
 # #                                                           #
 # #############################################################
 
-# Możesz używać kodów kolorów (np. &a, &c, &l) HEX'ÓW oraz gradientów i placeholderów jak %time%, %player%, %min%.
+# Możesz używać kodów kolorów (np. &a, &c, &l) HEX'ÓW oraz gradientów i placeholderów jak %type%, %val%, %count%.
+
 messages:
-  no-permission: "&cNie masz permisji!"
-  reload-success: "&aKonfiguracja przeładowana pomyślnie!"
-  usage-gate-command: "&cUżycie: &6/bramka <Kategoria> <Typ> <Parametr>"
 
-  # Wiadomości z komendy /bramka
-  need-channel: "&cMusisz podać kanał! <kanał1,kanał2...>"
-  provide-limit: "&cPodaj limit!"
-  provide-value: "&cPodaj wartość!"
-  provide-text: "&cPodaj tekst!"
-  provide-range2: "&cPodaj zakres!"
-  wrong-format: "&cZły format! Użyj: min-max (np. 0-10)"
-  provide-mode: "&cPodaj tryb!"
-  provide-sign: "&cPodaj znak! (>, <, ==, !=, >=, <=)"
-  provide-string-mode: "&cPodaj znak! (EQUALS, EQUALS_IGNORE_CASE, CONTAINS, STARTS_WITH, ENDS_WITH, EMPTY)"
-  invalid-sign: "&cTo nie jest prawidłowy operator matematyczny!"
-  invalid-string-sign: "&cTo nie jest prawidłowy operator tekstowy!"
-  negative-number: "&cNie możesz wpisać liczby ujemnej!"
-  min-greater-than-max: "&cLiczba min nie może być większa od liczby max!"
-  not-a-number: "&cTo nie jest liczba!"
-  limit-range: "&cLimit musi być w zakresie 1-1000!"
-  provide-range: "&cPodaj zasięg (1-15)!"
-  range-out-of-bounds: "&cZasięg musi być w zakresie 1-15!"
-  provide-time: "&cPodaj czas (5t-10s)!"
-  provide-unit: "&cPodaj jednostkę: &e't' &7(ticki) &club &e's' &7(sekundy)&c!"
-  invalid-time-format: "&cPodaj poprawny format (np. 10s)!"
-  provide-delay: "&cPodaj opóźnienie (1t-10s)!"
-  ticks-range-repeater: "&cOpóźnienie w tickach musi być od 1t do 200t (10s)!"
-  seconds-range-repeater: "&cOpóźnienie w sekundach musi być od 1s do 10s!"
-  provide-frequency: "&cPodaj częstotliwość (1t-10s)!"
-  ticks-range-clock: "&cCzęstotliwość w tickach musi być od 1t do 200t (10s)!"
-  seconds-range-clock: "&cCzęstotliwość w sekundach musi być od 1s do 10s!"
 
-  # Wiadomości z interacją bramek
-  gate-item-name-prefix: "&4Bramka: &c"
-  gate-removed: "&cBramka &6{TYPE} &czostała usunięta!"
-  power-block-break-deny: "&cTo jest blok zasilający wyjście bramki!"
-  gate-placed: "&aPostawiono bramkę &e{TYPE} &6Wyjście: &e{OUT}"
+  # --- Ogólne / Systemowe ---
+  general:
+    only-players: "&cTa komenda nie jest dostępna dla konsoli!"
+    no-permission: "&cNie masz permisji!"
+    reload-success: "&aKonfiguracja przeładowana pomyślnie!"
 
-  # --- Tryb Edycji Bramek ---
-  edit-mode-start: "&7Wszedłeś w tryb edycji bramki: &6{TYPE}"
-  edit-cancelled: "&cEdycja została anulowana."
-  edit-unknown-command: "&cNieznana komenda edycji! Wpisz &7anuluj&c, aby wyjść."
-  edit-format-error: "&cBłąd! Podana wartość musi być liczbą."
 
-  # Instrukcje wyświetlane po kliknięciu (bez prefixu zazwyczaj)
-  edit-value-info: "&7Wpisz: &fwartosc: <liczba>"
-  edit-mode-info: "&7Wpisz: &ftryb: <ADD|SUB|MUL|DIV|POW> &7lub &f<==|>|<|>=|!=|...>"
-  edit-random-info: "&7Wpisz: &fmin: <liczba> &7lub &fmax: <liczba>"
-  edit-limit-info: "&7Wpisz: &flimit: <liczba> &8(Obecnie: {CURRENT})"
-  edit-range-info: "&7Wpisz: &fzasieg: <liczba> &8(Obecnie: {CURRENT})"
-  edit-time-info: "&7Wpisz: &fczas: <liczba>s &7lub &f<liczba>t"
-  edit-cancel-info: "&7Wpisz &canuluj&7, aby wyjść bez zmian."
+  # --- Komenda Główna Bramek /bramka ---
+  gate-cmd:
+    usage: "&cUżycie: &6/bramka <Kategoria> <Typ> <Parametr>"
+    need-channel: "&cMusisz podać kanał! <kanał1,kanał2...>"
+    provide-limit: "&cPodaj limit!"
+    provide-value: "&cPodaj wartość!"
+    provide-text: "&cPodaj tekst!"
+    provide-range: "&cPodaj zasięg (1-15)!"
+    provide-mode: "&cPodaj tryb!"
+    provide-sign: "&cPodaj znak! (>, <, ==, !=, >=, <=)"
+    provide-string-sign: "&cPodaj znak! (EQUALS, EQUALS_IGNORE_CASE, CONTAINS, STARTS_WITH, ENDS_WITH, EMPTY)"
+    provide-time: "&cPodaj czas (5t-10s)!"
+    provide-unit: "&cPodaj jednostkę: &e't' &7(ticki) &club &e's' &7(sekundy)&c!"
+    provide-delay: "&cPodaj opóźnienie (1t-10s)!"
+    provide-frequency: "&cPodaj częstotliwość (1t-10s)!"
+    invalid-sign: "&cTo nie jest prawidłowy operator matematyczny!"
+    invalid-string-sign: "&cTo nie jest prawidłowy operator tekstowy!"
+    invalid-time: "&cPodaj poprawny format (np. 10s)!"
+    wrong-format: "&cZły format! Użyj: min-max (np. 0-10)"
+    not-a-number: "&cTo nie jest liczba!"
+    negative-number: "&cNie możesz wpisać liczby ujemnej!"
+    min-greater-than-max: "&cLiczba min nie może być większa od liczby max!"
+    limit-range: "&cLimit musi być w zakresie 1-1000!"
+    range-bounds: "&cZasięg musi być w zakresie 1-15!"
+    repeater-ticks-range: "&cOpóźnienie w tickach musi być od 1t do 200t (10s)!"
+    repeater-seconds-range: "&cOpóźnienie w sekundach musi być od 1s do 10s!"
+    clock-ticks-range: "&cCzęstotliwość w tickach musi być od 1t do 200t (10s)!"
+    clock-seconds-range: "&cCzęstotliwość w sekundach musi być od 1s do 10s!"
 
-  # Potwierdzenia zmian
-  value-set: "&7Ustawiono nową wartość: &f{VAL}"
-  mode-set: "&7Ustawiono tryb operacji: &f{MODE}"
-  limit-set: "&7Ustawiono limit licznika: &f{VAL}"
-  min-set: "&7Ustawiono minimum: &f{VAL}"
-  max-set: "&7Ustawiono maksimum: &f{VAL}"
-  time-set: "&7Ustawiono czas: &f{VAL}"
-  range-set: "&7Ustawiono zasięg czujnika: &f{VAL}"
 
-  # Zaznaczanie
-  selector-item-name: "&dSelektor Bramek"
-  receive-selector: "&aOtrzymałeś Selektor Bramek!"
-  position-1-selected: "&ePunkt 1 ustawiony!"
-  position-2-selected: "&ePunkt 2 ustawiony!"
-  both-positions-required: "&cMusisz najpierw zaznaczyć oba punkty!"
-  cut-out-area: "&aWycięto obszar, usunięto &f{COUNT} &abramek logicznych"
+  # --- Interakcja z Bramkami (Stawianie/Niszczenie/Przedmioty) ---
+  gate:
+    prefix-item: "&4Bramka: &c"
+    received: "&aOtrzymałeś bramkę: &e%type%"
+    placed: "&aPostawiono bramkę &e%type% &6Wyjście: &e%out%"
+    removed: "&cBramka &6%type% &czostała usunięta!"
+    unknown-type: "&cNieznany typ bramki!"
+    unsupported: "&cBramka &6%type% &cNie będzie działać prawidłowo na tym serwerze"
+    power-break-deny: "&cTo jest blok zasilający wyjście bramki!"
 
-  # Kopiowanie wklejanie obracanie i cofnięcia
-  copy-success: "&aSkopiowano &e{COUNT} &abramek do schowka!"
-  clipboard-empty: "&cTwój schowek jest pusty! Najpierw użyj /ars copy"
-  paste-success: "&aPomyślnie wklejono &e{COUNT} &abramek!"
-  rotate-success: "&7Obrócono zawartość schowka o &f{DEGREE} &7stopni"
-  invalid-rotate-angle: "&cNieprawidłowy kąt! Użyj 90, -90 lub 180"
-  undo-success: "&aCofnięto ostatnie wklejanie (&7{COUNT} bramek&a)"
-  nothing-to-undo: "&cNie masz nic do cofnięcia!"
-  redo-success: "&ePrzywrócono ostatnie cofnięcie (&7{COUNT} &ebramek)"
-  nothing-to-redo: "&cNie masz nic do przywrócenia (Redo)!"
 
-  # Schematy
-  schema-save-success: "&aSchemat &e%NAME% &azostał pomyślnie zapisany na dysku! &7(%COUNT% bramek)"
-  schema-save-error: "&cWystąpił krytyczny błąd podczas zapisu schematu!"
-  schema-not-found: "&cNie znaleziono pliku schematu o nazwie &e%NAME%.yml &cw folderze pluginu"
-  schema-corrupted: "&cPlik schematu jest pusty, uszkodzony lub ma nieprawidłową strukturę YAML"
-  schema-load-success: "&aSchemat &e%NAME% &7(%COUNT% bramek) &azostał załadowany do schowka! Wpisz komendę wklejenia, aby go umieścić w świecie"
-  schema-specify-action: "&cMusisz wybrać akcję! Prawidłowe użycie: &e/ars schematic <save/load/delete> [nazwa]"
-  schema-unknown-action: "&cNieznana akcja schematu! Dostępne opcje to: &esave&c, &eload &club &edelete"
-  schema-specify-name: "&cMusisz podać nazwę schematu! Prawidłowe użycie: &e/ars schematic <save/load/delete> [nazwa]"
-  schema-invalid-name: "&cNazwa schematu zawiera niedozwolone znaki! Używaj tylko liter, cyfr, _ oraz -"
-  schema-deleted: "&aPomyślnie usunięto schemat &e%NAME%.yml &az plików serwera"
-  schema-delete-error: "&cWystąpił błąd podczas usuwania pliku &e%NAME%.yml&c!"
-  schema-file-exists: "&cPlik schematu &e%NAME%.yml &cjuż istnieje!"
-  schema-usage-delete: "&cPoprawne użycie: &e/ars schematic delete <nazwa>"
+  # --- GUI Edycji Bramek ---
+  gui:
+    title: "&8Edycja: &f%type%"
+    saved: "&aUstawienia bramki zostały zapisane!"
+    value-changed: "&aZmieniono wartość bramki &e%type% &ana: &f%val%"
 
-  # Inne
-  gate-received: "&aOtrzymałeś bramkę: &e{TYPE}"
-  unknown-type-gate: "&cNieznany typ bramki!"
+    status-inputs: "&eTryb: &f%val% Wejścia &7(Kliknij, aby zmienić)"
+    status-time: "&7Obecny czas: &e%val% Ticks"
+    status-value: "&7Obecna wartość: &e%val%"
+    status-limit: "&7Obecny limit: &e%val%"
+    status-range: "&7Obecny zasięg: &e%val% bloków"
+    status-random: "&7Zakres: &e%min% &7do &e%max%"
+    status-mode: "&7Obecny tryb: &e%mode%"
+
+
+  # --- Zaznaczanie (Selektor) ---
+  selector:
+    item-name: "&dSelektor Bramek"
+    received: "&aOtrzymałeś Selektor Bramek!"
+    pos-1: "&ePunkt 1 ustawiony!"
+    pos-2: "&ePunkt 2 ustawiony!"
+    both-required: "&cMusisz najpierw zaznaczyć oba punkty!"
+    cut: "&aWycięto obszar, usunięto &f%count% &abramek logicznych"
+
+
+  # --- Edycja Obszaru (Copy/Paste/Rotate/Undo/Redo) ---
+  clipboard:
+    copy-success: "&aSkopiowano &e%count% &abramek do schowka!"
+    empty: "&cTwój schowek jest pusty! Najpierw użyj /ars copy"
+    paste-success: "&aPomyślnie wklejono &e%count% &abramek!"
+    rotate-success: "&7Obrócono zawartość schowka o &f%degree% &7stopni"
+    invalid-rotate-angle: "&cNieprawidłowy kąt! Użyj 90, -90 lub 180"
+    undo-success: "&aCofnięto ostatnie wklejanie (&7%count% bramek&a)"
+    nothing-to-undo: "&cNie masz nic do cofnięcia!"
+    redo-success: "&ePrzywrócono ostatnie cofnięcie (&7%count% &ebramek)"
+    nothing-to-redo: "&cNie masz nic do przywrócenia (Redo)!"
+
+
+  # --- Schematy ---
+  schema:
+    specify-action: "&cMusisz wybrać akcję! Prawidłowe użycie: &e/ars schematic <save/load/delete> [nazwa]"
+    specify-name: "&cMusisz podać nazwę schematu! Prawidłowe użycie: &e/ars schematic <save/load/delete> [nazwa]"
+    invalid-name: "&cNazwa schematu zawiera niedozwolone znaki! Używaj tylko liter, cyfr, _ oraz -"
+    not-found: "&cNie znaleziono pliku schematu o nazwie &e%name%.json &cw folderze pluginu"
+    corrupted: "&cPlik schematu jest pusty, uszkodzony lub ma nieprawidłową strukturę JSON"
+    file-exists: "&cPlik schematu &e%name%.json &cjuż istnieje!"
+    save-success: "&aSchemat &e%name% &azostał pomyślnie zapisany na dysku! &7(%count% bramek)"
+    save-error: "&cWystąpił krytyczny błąd podczas zapisu schematu!"
+    load-success: "&aSchemat &e%name% &7(%count% bramek) &azostał załadowany do schowka! Wpisz komendę wklejenia, aby go umieścić w świecie"
+    deleted: "&aPomyślnie usunięto schemat &e%name%.json &az plików serwera"
+    delete-error: "&cWystąpił błąd podczas usuwania pliku &e%name%.json&c!"

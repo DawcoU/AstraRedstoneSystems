@@ -2,32 +2,17 @@
 # |                     AstraRedstoneSystems - Configuration file             |
 # +---------------------------------------------------------------------------+
 
+
 # =========================================
 #             General Settings
 # =========================================
 settings:
   # Wybierz język pluginu (Dostępne: pl, en)
   # Select the plugin language (Available: pl, en)
-  language: pl
+  language: en
 
   # Should the plugin check for newer versions of the plugin?
   check-updates: true
 
-  # Should debug output from logic gates be sent to the console?
+  # Should logic gate state change and general debugging be sent?
   debug-mode: false
-
-# ==========================================
-#              Logic Gate Setup
-# ==========================================
-gates:
-  data-gates:
-    battery:
-      decay-time-minutes: 3 # Every how many minutes should it discharge one percent?
-      charge-time-seconds: 30 # Every how many seconds should it charge at one percent?
-    display:
-      # Format pattern for the hologram text.
-      # Use '{text}' as a placeholder for the actual data value.
-      # You can use standard legacy colors (&a, &b), MiniMessage tags (<red>, <#HEX>),
-      # or even complex gradients (e.g., <gradient:white:red>{text}</gradient>).
-      # Example: "<gradient:#F2F2F2:#FF2E2E>{text}</gradient>"
-      color: "&f{text}"

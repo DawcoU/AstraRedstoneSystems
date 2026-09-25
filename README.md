@@ -1,28 +1,52 @@
 # 🌌 AstraRedstoneSystems
 **Build complex redstone systems without cables using logic blocks, memory, timers, wireless signals and data processing.**
 
-Created and maintained by **DawcoU** 👨‍💻
+Created and maintained with 💻 from Poland by DawcoU 🇵🇱
 
-AstraRedstoneSystems is a powerful tool for technical players and map makers, allowing you to create complex Redstone mechanisms using dedicated logic blocks. Written in **Java 17** and optimized specifically for **Paper** (and its forks) to ensure maximum performance and tick-accuracy. ⚡
+AstraRedstoneSystems is a powerful tool for technical players and map makers, allowing you to create complex Redstone mechanisms using dedicated logic blocks. For newer Minecraft versions (1.18 - 26.2+).
+Developed in Java 17 and leveraging the Paper API for maximum efficiency, it is the perfect choice for Survival, Technical, and Mini-Game servers. 🚀🎮
+
+⭐ AstraRedstoneSystems supports:
+- Paper
+- Purpur
+- Arclight (supported, but not recommended)
+- Spigot (supported, but not recommended)
+
+🚰⚠️ Spigot is supported, but it is not the recommended platform.
+Some features may behave differently or cause compatibility issues.
+Paper or its forks are strongly recommended for the best experience.
 
 ---
 
 ### 🚀 Key Features
 * **Core Logic Gates:** Includes all basic gates like **NOT, AND, OR, XOR, NAND, NOR, XNOR**. 🧩
 * **Data Processing:** Advanced gates for math, variables, and comparisons. 🔢
-* **Wireless Data Link:** Transfer numbers and signals between gates without cables using `/alg link` or wireless channels. 🔗
 * **Memory & Timing:** RS-Latch, T-Flip-Flop, and enhanced repeaters with delays up to several seconds. ⏱️
 * **Long-Range Sensing:** Motion sensors that work at a distance. 📡
+* **Multi-input gates:** Basic logic gates (e.g., AND, XOR, OR) can have 2-3 inputs 📥🚪🚪
+* **Convenient Gate Configuration:** Easily edit gate settings through an intuitive GUI. 🖥️
 
 ---
 
 ### 🛠️ Commands & Permissions
 
-| Command | Description | Permission |
-| :--- | :--- | :--- |
-| `/bramka <category> <type>` | Receive a specific logic gate block | `astrars.gates` |
-| `/bramka <category> <type> <param>` | Receive a gate with parameter (e.g. `DECODER 5`) | `astrars.gates` |
-| `/alg link` | Link two gates to transfer data wirelessly | `astrars.admin` |
+| Command                           | Description                                                     | Permission                 |
+|:----------------------------------|:----------------------------------------------------------------|:---------------------------|
+| `/gate <category> <type>`         | Receive a specific logic gate block 🧩                          | `astrars.gates.<category>` |
+| `/gate <category> <type> <param>` | Receive a gate with parameter (e.g. `DECODER 5`) ⚙️             | `astrars.gates.<category>` |
+| `/ars help`                       | Displays the plugin help menu ❓                                 | *None*                     |
+| `/ars info`                       | Displays information about author, version, and license ℹ️      | *None*                     |
+| `/ars reload`                     | Reloads configuration and language files ⚙️                     | `astrars.reload`           |
+| `/ars selector`                   | Gives the selection tool wand 🪄                                | `astrars.admin`            |
+| `/ars cut`                        | Cuts the selected circuit area into the clipboard ✂️            | `astrars.admin`            |
+| `/ars copy`                       | Copies the selected circuit area to the clipboard 📋            | `astrars.admin`            |
+| `/ars paste`                      | Pastes the copied circuit from clipboard at current position 📌 | `astrars.admin`            |
+| `/ars undo`                       | Reverts the last paste action ↩️                                | `astrars.admin`            |
+| `/ars redo`                       | Restores the previously undone paste action ↪️                  | `astrars.admin`            |
+| `/ars rotate <90 \| -90 \| 180>`  | Rotates the copied circuit in clipboard by specified degrees 🔄 | `astrars.admin`            |
+| `/ars schematic save <name>`      | Saves the current clipboard contents to a schematic file 💾     | `astrars.admin`            |
+| `/ars schematic load <name>`      | Loads a schematic file into the clipboard 📂                    | `astrars.admin`            |
+| `/ars schematic delete <name>`    | Deletes a saved schematic file 🗑️                              | `astrars.admin`            |
 
 ---
 
@@ -43,14 +67,13 @@ All blocks have a predefined output direction (Front) based on where you look du
 * **XOR** 🟢: Exclusive OR. Output ON if side inputs are different.
 * **IMPLY** 🟢: Output OFF only if Back is ON and Sides are OFF.
 * **MUX** 🟢: Multiplexer. Passes the signal from the left or right side, depending on the status of the rear input. If the rear input is OFF, it takes the signal from the left side, and if ON, it takes the signal from the right side.
-* **SYNCHRONIZER** 🟤: Synchronizes signals. Outputs ON only when inputs from specified sides arrive at the exact same tick.
 
 #### 💾 2. Memory Category (`/bramka memory <type>`)
 * **LATCH** 🔵: RS-Latch memory cell. Set input on one right side and Reset on the left side.
 * **TFF** 🔷: Toggle Flip-Flop. Changes its output state (Toggles ON/OFF) every time it receives a short pulse from the back.
-* **MEMORY_CELL** 🟦: It stores the binary signal at the back, takes the redstone signal at the right input, writes it to the middle of the gate and at the left input reads it and turns on the output
+* **MEMORY_CELL** 🟦: It stores the binary signal at the back, takes the redstone signal at the right input, writes it to the middle of the gate and at the left input reads it and turns on the output.
 
-#### 🔢 3. Numbers Category (`/bramka numbers <type>`)
+#### 🔢 3. Numbers Category (`/bramka number <type>`)
 * **MATH** 🟦: Core calculator block. Takes numbers from Left and Right inputs, performs actions (`ADD`, `SUB`, `MUL`, `DIV`, `POW`), and sends the result forward.
 * **DECIMAL_ACCUMULATOR** 🟦: Accumulates digits to form larger numbers (e.g., typing 1 then 2 creates 12). Resets immediately on side pulse.
 * **COUNTER** ⬜: Increases/decreases its internal stored number based on side inputs.
@@ -71,18 +94,28 @@ All blocks have a predefined output direction (Front) based on where you look du
 * **DISPLAY** ⬜: Text hologram display. Renders any incoming string/number from the back dynamically in the air.
 * **TRANSISTOR** 🔴: Data valve. Passes data from the back to the front unless it is blocked by a side Redstone signal.
 * **DISK_GATE (Formerly VARIABLE_GATE)** 🔷: The fixed String/Number memory cell on the back takes and stores incoming text or number and the sides are used to reset the cell.
-* **RAM_GATE** 🟢: Volatile memory cell works the same as DISK_GATE but requires a constant redstone signal from the right side to store and hold the current value and the left side resets it
+* **RAM_GATE** 🟢: Volatile memory cell works the same as DISK_GATE but requires a constant redstone signal from the right side to store and hold the current value and the left side resets it.
 * **BATTERY** 🟠: Energy storage cell. Charges when powered from the back and slowly decays over time. Outputs its current status as a percentage (e.g., `85%`).
+* **DATA_DETECTOR** 🟢: Data presence sensor. Listens for signals from the back and turns ON its output only when valid data is received (such as text or a number). Remains OFF if the input is empty or has no data.
 
 #### 📡 6. Space (Wireless) Category (`/bramka space <type>`)
-* **SENDER** 🟪: Bluetooth transmitter. Reads text/numbers from the back and broadcasts them wirelessly to a specific channel.
-* **RECEIVER** 🟪: Bluetooth receiver. Tunes into a channel, captures the transmitted data string, and outputs it forward.
-* **SENSOR** 🟥: Motion radar. Scans a configured radius and outputs a Redstone signal if a player is detected nearby.
+* **SENDER** 🟪: Bluetooth transmitter. Reads text/numbers or standard Redstone signals from the back and broadcasts them wirelessly to a specific channel.
+* **RECEIVER** 🟪: Bluetooth receiver. Tunes into a channel, captures the transmitted data string or Redstone signal, and outputs it forward.
+* **SENSOR** 🟥: Motion radar. Scans a configured radius and outputs a Redstone signal if a living entity is detected nearby.
 
 #### ⏱️ 7. Time Category (`/bramka time <type>`)
 * **CLOCK** 🟩: Automatic clock generator. Constantly toggles its output based on a configured interval.
 * **CLOCK_GATE** 🟢: Gated clock. Toggles its output only when the back input is actively powered.
 * **REPEATER** 🟡: Advanced repeater. Allows custom delays up to several seconds without losing signal strength.
+
+---
+
+### 📥 Installation
+
+1. Download the `.jar` file from [Modrinth](https://modrinth.com/plugin/astraredstonesystems). 📥
+2. Drop it into your `plugins` folder. 📂
+3. Restart your server. 🔄
+4. Customize your messages in the languages folder and settings in `config.yml`. 📝⚙️
 
 ---
 
@@ -93,12 +126,10 @@ All blocks have a predefined output direction (Front) based on where you look du
 
 # Links 💾
 
-**GitHub AstraRedstoneSystems:** [https://github.com/DawcoU/AstraRedstoneSystems](https://github.com/DawcoU/AstraRedstoneSystems) 🖥️
+**GitHub AstraRedstoneSystems:** [GitHub](https://github.com/DawcoU/AstraRedstoneSystems) 🖥️
 
 ---
 
 ### 🌐 Support & Community
-If you need help, want to report a bug, or follow the development by **DawcoU**, join our Discord: [https://discord.gg/XR9UUjZv](https://discord.gg/XR9UUjZv) 💬
-
----
-_AstraRedstoneSystems - Making Redstone Smart. ⚡_
+If you need help, want to report a bug, or follow the development by **DawcoU**, join our official Discord community:  
+🔗 **[Join our Discord Server](https://discord.gg/XR9UUjZv)** 💬👥

@@ -1,108 +1,111 @@
 # #############################################################
 # #                                                           #
-# #                AstraRedstoneSystems - Language File       #
-# #                   Language: English (EN)                  #
+# #           AstraRedstoneSystems - Language File            #
+# #                     Language: English (EN)                #
 # #                                                           #
 # #############################################################
 
-# You can use color codes (e.g., &a, &c, &l), HEX codes, gradients, and placeholders like %time%, %player%, %min%.
+# You can use color codes (e.g., &a, &c, &l), HEX codes, gradients, and placeholders like %type%, %val%, %count%.
+
 messages:
-  no-permission: "&cYou don't have permission!"
-  reload-success: "&aConfiguration reloaded successfully!"
-  usage-gate-command: "&cUsage: &6/gate <Category> <Type> <Parameter>"
 
-  # Messages from /bramka command
-  need-channel: "&cYou must specify a channel! <channel1,channel2...>"
-  provide-limit: "&cPlease specify a limit!"
-  provide-value: "&cPlease specify a value!"
-  provide-text: "&cProvide text!"
-  provide-range2: "&cProvide a range!"
-  wrong-format: "&cWrong format! Use: min-max (e.g., 0-10)"
-  provide-mode: "&cPlease specify a mode!"
-  provide-sign: "&cEnter a sign! (>, <, ==, !=, >=, <=)"
-  provide-string-mode: "&cEnter a character! (EQUALS, EQUALS_IGNORE_CASE, CONTAINS, STARTS_WITH, ENDS_WITH, EMPTY)"
-  invalid-sign: "&cThis is not a valid mathematical operator!"
-  invalid-string-sign: "&cThis is not a valid string operator!"
-  negative-number: "&cYou cannot enter a negative number!"
-  min-greater-than-max: "&cThe min number cannot be greater than the max number!"
-  not-a-number: "&cThis is not a number!"
-  limit-range: "&cThe limit must be in the range 1-1000!"
-  provide-range: "&cPlease specify a range (1-15)!"
-  range-out-of-bounds: "&cThe range must be in the range 1-15!"
-  provide-time: "&cProvide time (1t-10s)!"
-  provide-unit: "&cProvide a unit: &e't' &7(ticks) &cor &e's' &7(seconds)&c!"
-  invalid-time-format: "&cProvide a valid format (e.g., 10s)!"
-  provide-delay: "&cProvide a delay (1t-10s)!"
-  ticks-range-repeater: "&cDelay in ticks must be between 1t and 200t (10s)!"
-  seconds-range-repeater: "&cDelay in seconds must be between 1s and 10s!"
-  provide-frequency: "&cProvide a frequency (1t-10s)!"
-  ticks-range-clock: "&cFrequency in ticks must be between 1t and 200t (10s)!"
-  seconds-range-clock: "&cFrequency in seconds must be between 1s and 10s!"
 
-  # Gateway Interaction Messages
-  gate-item-name-prefix: "&4Gate: &c"
-  gate-removed: "&6{TYPE} &cgate has been removed!"
-  power-block-break-deny: "&cThis block is powering a gate output!"
-  gate-placed: "&aPlaced &e{TYPE} &agate. &6Output: &e{OUT}"
+  # --- General / System ---
+  general:
+    only-players: "&cThis command is not available from console!"
+    no-permission: "&cYou do not have permission!"
+    reload-success: "&aConfiguration reloaded successfully!"
 
-  # --- Gate Edit Mode ---
-  edit-mode-start: "&7You have entered gate edit mode: &6{TYPE}"
-  edit-cancelled: "&cEditing has been canceled."
-  edit-unknown-command: "&cUnknown edit command! Type &7cancel&c to exit."
-  edit-format-error: "&cError! The value entered must be a number."
 
-  # Instructions displayed on click (usually without prefix)
-  edit-value-info: "&7Enter: &fvalue: <number>"
-  edit-mode-info: "&7Enter: &fmode: <ADD|SUB|MUL|DIV|POW> &7or &f<==|>|<|>=|!=|...>"
-  edit-random-info: "&7Enter: &fmin: <number> &7or &fmax: <number>"
-  edit-limit-info: "&7Enter: &flimit: <number> &8(Current: {CURRENT})"
-  edit-range-info: "&7Enter: &frange: <number> &8(Current: {CURRENT})"
-  edit-time-info: "&7Enter: &ftime: <number>s &7or &f<number>t"
-  edit-cancel-info: "&7Enter &ccancel&7 to exit without changes."
+  # --- Main Gate Command /bramka ---
+  gate-cmd:
+    usage: "&cUsage: &6/bramka <Category> <Type> <Parameter>"
+    need-channel: "&cYou must specify a channel! <channel1,channel2...>"
+    provide-limit: "&cPlease provide a limit!"
+    provide-value: "&cPlease provide a value!"
+    provide-text: "&cPlease provide text!"
+    provide-range: "&cPlease provide a range (1-15)!"
+    provide-mode: "&cPlease provide a mode!"
+    provide-sign: "&cPlease provide an operator! (>, <, ==, !=, >=, <=)"
+    provide-string-sign: "&cPlease provide an operator! (EQUALS, EQUALS_IGNORE_CASE, CONTAINS, STARTS_WITH, ENDS_WITH, EMPTY)"
+    provide-time: "&cPlease provide a time (5t-10s)!"
+    provide-unit: "&cPlease provide a unit: &e't' &7(ticks) &cor &e's' &7(seconds)&c!"
+    provide-delay: "&cPlease provide a delay (1t-10s)!"
+    provide-frequency: "&cPlease provide a frequency (1t-10s)!"
+    invalid-sign: "&cThis is not a valid mathematical operator!"
+    invalid-string-sign: "&cThis is not a valid string operator!"
+    invalid-time: "&cPlease provide a valid format (e.g., 10s)!"
+    wrong-format: "&cInvalid format! Use: min-max (e.g., 0-10)"
+    not-a-number: "&cThis is not a number!"
+    negative-number: "&cYou cannot enter a negative number!"
+    min-greater-than-max: "&cMin value cannot be greater than max value!"
+    limit-range: "&cLimit must be in range 1-1000!"
+    range-bounds: "&cRange must be in range 1-15!"
+    repeater-ticks-range: "&cDelay in ticks must be between 1t and 200t (10s)!"
+    repeater-seconds-range: "&cDelay in seconds must be between 1s and 10s!"
+    clock-ticks-range: "&cFrequency in ticks must be between 1t and 200t (10s)!"
+    clock-seconds-range: "&cFrequency in seconds must be between 1s and 10s!"
 
-  # Confirm changes
-  value-set: "&7New value set: &f{VAL}"
-  mode-set: "&7Operation mode set: &f{MODE}"
-  limit-set: "&7Counter limit set: &f{VAL}"
-  min-set: "&7Minimum set: &f{VAL}"
-  max-set: "&7Maximum set: &f{VAL}"
-  time-set: "&7Time set: &f{VAL}"
-  range-set: "&7Sensor range set: &f{VAL}"
 
-  # Selecting
-  selector-item-name: "&dGate Selector"
-  receive-selector: "&aYou received the Gate Selector!"
-  position-1-selected: "&ePoint 1 set!"
-  position-2-selected: "&ePoint 2 set!"
-  both-positions-required: "&cYou must select both points first!"
-  cut-out-area: "&aCut out area, &f{COUNT} &alogic gates removed"
+  # --- Gate Interaction (Place/Break/Items) ---
+  gate:
+    prefix-item: "&4Gate: &c"
+    received: "&aYou received a gate: &e%type%"
+    placed: "&aPlaced gate &e%type% &6Output: &e%out%"
+    removed: "&cGate &6%type% &chas been removed!"
+    unknown-type: "&cUnknown gate type!"
+    unsupported: "&cGate &6%type% &cWill not work properly on this server"
+    power-break-deny: "&cThis is a power block powering the gate output!"
 
-  # Copy, paste, rotate and undo
-  copy-success: "&aSuccessfully copied &e{COUNT} &agates to clipboard!"
-  clipboard-empty: "&cYour clipboard is empty! Use /ars copy first"
-  paste-success: "&aSuccessfully pasted &e{COUNT} &agates!"
-  rotate-success: "&7Rotated clipboard contents by &f{DEGREE} &7degrees"
-  invalid-rotate-angle: "&cInvalid angle! Use 90, -90, or 180"
-  undo-success: "&aLast paste undone (&7{COUNT} gates&a)"
-  nothing-to-undo: "&cYou have nothing to undo!"
-  redo-success: "&eSuccessfully redone last undo (&7{COUNT} &egates)."
-  nothing-to-redo: "&cThere is nothing to redo!"
 
-  # Schematics
-  schema-save-success: "&aSchema &e%NAME% &ahas been successfully saved to disk! &7(%COUNT% gates)"
-  schema-save-error: "&cA critical error occurred while saving the schema!"
-  schema-not-found: "&cSchema file named &e%NAME%.yml &cwas not found in the plugin folder"
-  schema-corrupted: "&cThe schema file is empty, corrupted, or has an invalid YAML structure"
-  schema-load-success: "&aSchema &e%NAME% &7(%COUNT% gates) &ahas been loaded into the clipboard! Type the paste command to place it in the world"
-  schema-specify-action: "&cYou must choose an action! Correct usage: &e/ars schematic <save/load/delete> [name]"
-  schema-unknown-action: "&cUnknown schema action! Available options are: &esave&c, &eload &cor &edelete"
-  schema-specify-name: "&cYou must specify the schema name! Correct usage: &e/ars schematic <save/load/delete> [name]"
-  schema-invalid-name: "&cThe schema name contains invalid characters! Use only letters, digits, _ and -"
-  schema-deleted: "&aSuccessfully deleted the schema &e%NAME%.yml &afrom the server files"
-  schema-delete-error: "&cAn error occurred while deleting the file &e%NAME%.yml&c!"
-  schema-file-exists: "&cThe schema file &e%NAME%.yml &cexists!"
-  schema-usage-delete: "&cCorrect usage: &e/ars schematic delete <name>"
+  # --- Gate Editing GUI ---
+  gui:
+    title: "&8Edit: &f%type%"
+    saved: "&aGate settings have been saved!"
+    value-changed: "&aChanged value for gate &e%type% &fto: &f%val%"
 
-  # Others
-  gate-received: "&aYou received a gate: &e{TYPE}"
-  unknown-type-gate: "&cUnknown gate type!"
+    status-inputs: "&eMode: &f%val% Inputs &7(Click to switch)"
+    status-time: "&7Current time: &e%val% Ticks"
+    status-value: "&7Current value: &e%val%"
+    status-limit: "&7Current limit: &e%val%"
+    status-range: "&7Current range: &e%val% blocks"
+    status-random: "&7Range: &e%min% &7to &e%max%"
+    status-mode: "&7Current mode: &e%mode%"
+
+
+  # --- Selection (Selector) ---
+  selector:
+    item-name: "&dGate Selector"
+    received: "&aYou received a Gate Selector!"
+    pos-1: "&ePoint 1 set!"
+    pos-2: "&ePoint 2 set!"
+    both-required: "&cYou must select both points first!"
+    cut: "&aCut area, removed &f%count% &clogic gates"
+
+
+  # --- Area Editing (Copy/Paste/Rotate/Undo/Redo) ---
+  clipboard:
+    copy-success: "&aCopied &e%count% &agates to clipboard!"
+    empty: "&cYour clipboard is empty! Use /ars copy first"
+    paste-success: "&aSuccessfully pasted &e%count% &agates!"
+    rotate-success: "&7Rotated clipboard contents by &f%degree% &7degrees"
+    invalid-rotate-angle: "&cInvalid angle! Use 90, -90, or 180"
+    undo-success: "&aUndone last paste (&7%count% gates&a)"
+    nothing-to-undo: "&cYou have nothing to undo!"
+    redo-success: "&eRedone last undo (&7%count% &egates)"
+    nothing-to-redo: "&cYou have nothing to redo!"
+
+
+  # --- Schematics ---
+  schema:
+    specify-action: "&cYou must choose an action! Usage: &e/ars schematic <save/load/delete> [name]"
+    specify-name: "&cYou must specify a schematic name! Usage: &e/ars schematic <save/load/delete> [name]"
+    invalid-name: "&cSchematic name contains invalid characters! Use only letters, numbers, _, and -"
+    not-found: "&cSchematic file named &e%name%.json &cnot found in plugin directory"
+    corrupted: "&cSchematic file is empty, corrupted, or has invalid JSON structure"
+    file-exists: "&cSchematic file &e%name%.json &calready exists!"
+    save-success: "&aSchematic &e%name% &asaved successfully to disk! &7(%count% gates)"
+    save-error: "&cA critical error occurred while saving schematic!"
+    load-success: "&aSchematic &e%name% &7(%count% gates) &aloaded to clipboard! Run paste command to place it in world"
+    deleted: "&aSuccessfully deleted schematic &e%name%.json &cfrom server files"
+    delete-error: "&cAn error occurred while deleting file &e%name%.json&c!"
