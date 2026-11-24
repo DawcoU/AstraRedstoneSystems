@@ -16,17 +16,20 @@ import pl.dawcou.astrars.file.FilesConverter;
 import pl.dawcou.astrars.file.FilesUpdater;
 import pl.dawcou.astrars.file.GateDataManager;
 import pl.dawcou.astrars.gates.types.*;
-import pl.dawcou.astrars.listeners.GateCleanupListener;
-import pl.dawcou.astrars.listeners.UpdateNotifyListener;
+import pl.dawcou.astrars.listeners.GateCleanupListeners;
+import pl.dawcou.astrars.listeners.PlayerListeners;
+import pl.dawcou.astrars.listeners.SelectionListeners;
 import pl.dawcou.astrars.system.*;
 import pl.dawcou.astrars.gates.data.GateValidator;
 import pl.dawcou.astrars.selection.SelectionManager;
+import pl.dawcou.astrars.system.updater.AutoUpdater;
+import pl.dawcou.astrars.system.updater.UpdateChecker;
 
 import java.util.concurrent.TimeUnit;
 
 public class AstraRS extends JavaPlugin {
 
-    public static final String PREFIX = "<#3277e6>[</#3277e6><gradient:#F2F2F2:#F2F2F2:#FF2E2E:#FF2E2E>AstraRS</gradient><#3277e6>]</#3277e6>";
+    public static final String PREFIX = "<#3277e6>[</#3277e6><gradient:#FFFFFF:#FFC2C2:#FF7272:#FF0000>AstraRS</gradient><#3277e6>]</#3277e6>";
     public static final String PREFIX2 = "§9[§fAstra§4RS§9]";
     public static final String DEBUG_PREFIX = PREFIX2 + " §b[§eDebug§b] ";
 
@@ -36,7 +39,7 @@ public class AstraRS extends JavaPlugin {
     private static AstraRS instance;
     private BukkitAudiences adventure;
 
-    public boolean debugMode;
+    private boolean debugEnabled;
 
     private GateDataManager gateDataManager;
 
@@ -46,6 +49,7 @@ public class AstraRS extends JavaPlugin {
     private MemoryGates memoryGates;
     private TimeGates timeGates;
     private NumberGates numberGates;
+    private BooleanGates booleanGates;
     private StringGates stringGates;
     private DataGates dataGates;
     private SpaceGates spaceGates;
@@ -57,30 +61,33 @@ public class AstraRS extends JavaPlugin {
     // ----------------------------------------------------------------------------------------------------
 
     private SchedulerManager schedulerManager;
+    private SoundManager soundManager;
     private LanguageManager languageManager;
     private NoticeManager noticeManager;
     private FilesUpdater filesUpdater;
     private UpdateChecker updateChecker;
+    private AutoUpdater autoUpdater;
 
     // ----------------------------------------------------------------------------------------------------
     // GETTERY - SYSTEMOWE I GLOWNE
     // ----------------------------------------------------------------------------------------------------
 
     public static AstraRS getInstance() { return instance; }
-    public BukkitAudiences getAdventure() { return this.adventure; }
-    public boolean isDebugMode() { return debugMode; }
+    public BukkitAudiences getAdventure() { return adventure; }
+    public boolean isDebugEnabled() { return debugEnabled; }
 
     public SchedulerManager getSchedulerManager() { return schedulerManager; }
+    public SoundManager getSoundManager() { return soundManager; }
 
     public LanguageManager getLanguageManager() {
         return languageManager;
     }
-
     public NoticeManager getNoticeManager() {
         return noticeManager;
     }
 
     public UpdateChecker getUpdateChecker() { return updateChecker; }
+    public AutoUpdater getAutoUpdater() { return autoUpdater; }
 
     public GateDataManager getGateDataManager() {
         return gateDataManager;
@@ -113,13 +120,14 @@ public class AstraRS extends JavaPlugin {
         instance = this;
 
         // 1. Podstawowe narzędzia
-        this.adventure = BukkitAudiences.create(this);
+        adventure = BukkitAudiences.create(this);
         saveDefaultConfig();
 
         int pluginId = 31505;
         Metrics metrics = new Metrics(this, pluginId);
 
         schedulerManager = new SchedulerManager(this);
+        soundManager = new SoundManager(this);
 
         // 2. Menedżer języka i jego natychmiastowy BOOTSTRAP (aby getLang() i wiadomości nie były null)
         languageManager = new LanguageManager(this);
@@ -131,7 +139,8 @@ public class AstraRS extends JavaPlugin {
         // 4. Migracje i aktualizacje plików (mogą bezpiecznie wysyłać logi przez NoticeManager)
         new FilesConverter(this).runAllMigrations();
 
-        updateChecker = new UpdateChecker(this);
+        updateChecker = new UpdateChecker(this, "6PT3nWjN");
+        autoUpdater = new AutoUpdater(this, "6PT3nWjN");
 
         filesUpdater = new FilesUpdater(this);
         filesUpdater.check();
@@ -140,35 +149,36 @@ public class AstraRS extends JavaPlugin {
         languageManager.reload();
 
         // 6. Menedżery danych i logiki bramek
-        this.gateValidator = new GateValidator();
-        this.gateDataManager = new GateDataManager(this);
-        this.gateDataManager.load(); // Najpierw ładujemy dane!
+        gateValidator = new GateValidator();
+        gateDataManager = new GateDataManager(this);
+        gateDataManager.load(); // Najpierw ładujemy dane!
 
-        this.basicGates = new BasicGates(this, gateValidator);
-        this.memoryGates = new MemoryGates(this, gateValidator);
-        this.timeGates = new TimeGates(this, gateValidator);
-        this.numberGates = new NumberGates(this, gateValidator);
-        this.stringGates = new StringGates(this, gateValidator);
-        this.dataGates = new DataGates(this, gateValidator);
-        this.spaceGates = new SpaceGates(this, gateValidator);
+        basicGates = new BasicGates(this, gateValidator);
+        memoryGates = new MemoryGates(this, gateValidator);
+        timeGates = new TimeGates(this, gateValidator);
+        numberGates = new NumberGates(this, gateValidator);
+        booleanGates = new BooleanGates(this, gateValidator);
+        stringGates = new StringGates(this, gateValidator);
+        dataGates = new DataGates(this, gateValidator);
+        spaceGates = new SpaceGates(this, gateValidator);
 
-        this.gateGUI = new GateGUI(this);
+        gateGUI = new GateGUI(this);
 
         // 7. Komendy i selekcje
         SelectionManager selectionManager = new SelectionManager(this, gateDataManager);
         AstraRSCommand astraRSCommand = new AstraRSCommand(this, selectionManager);
         GateCommand gateCommand = new GateCommand(this);
 
-        debugMode = getConfig().getBoolean("settings.debug-mode", false);
+        debugEnabled = getConfig().getBoolean("settings.debug-mode", false);
 
         // Rejestrujemy eventy
         org.bukkit.plugin.PluginManager pm = getServer().getPluginManager();
 
         pm.registerEvents(new GateListeners(this), this);
-        pm.registerEvents(new GateCleanupListener(this), this);
-        pm.registerEvents(new UpdateNotifyListener(this), this);
+        pm.registerEvents(new GateCleanupListeners(this), this);
+        pm.registerEvents(new PlayerListeners(this), this);
         pm.registerEvents(new GateGUI(this), this);
-        pm.registerEvents(selectionManager, this);
+        pm.registerEvents(new SelectionListeners(this, selectionManager), this);
 
         registerCommand("bramka", gateCommand, gateCommand);
         registerCommand("astraredstonesystems", astraRSCommand, astraRSCommand);
@@ -176,6 +186,7 @@ public class AstraRS extends JavaPlugin {
         // Pętla bramek - synchronicznie co 1 tick
         schedulerManager.runSyncRepeating(() -> {
             numberGates.runNumberGates();
+            booleanGates.runBooleanGates();
             stringGates.runStringGates();
             dataGates.runDataGates();
 
@@ -185,21 +196,16 @@ public class AstraRS extends JavaPlugin {
             spaceGates.runSpaceGates();
         }, 1L, 1L);
 
-        // Zapis bramek - asynchronicznie co 5 minut (6000 ticków)
+        // Zapis bramek — asynchronicznie co 5 minut
         schedulerManager.runAsyncRepeating(this::saveGates, 5, 5, TimeUnit.MINUTES);
 
-        // LOGO STARTOWE I SPRAWDZANIE WERSJI
-        schedulerManager.runAsync(() -> {
-            // Logo zawsze przy starcie
-            noticeManager.sendStartupLogo();
+        // LOGO STARTOWE
+        noticeManager.sendStartupLogo();
 
-            // Sprawdzanie aktualizacji
-            if (getConfig().getBoolean("settings.check-updates", true)) {
-                updateChecker.checkForUpdates(Bukkit.getConsoleSender());
-            } else {
-                noticeManager.sendVersionOk(getServer().getConsoleSender());
-            }
-        });
+        // Sprawdzanie aktualizacji
+        if (getConfig().getBoolean("settings.update.check-updates", true)) {
+            updateChecker.checkForUpdates(Bukkit.getConsoleSender());
+        }
     }
 
     @Override
@@ -210,6 +216,13 @@ public class AstraRS extends JavaPlugin {
         languageManager.printMissingKeys();
 
         noticeManager.sendShutdownLogo();
+    }
+
+    public void reload() {
+        reloadConfig();
+        gateDataManager.load();
+        debugEnabled = getConfig().getBoolean("settings.debug.enabled", false);
+        languageManager.reload();
     }
 
     public void saveGates() {

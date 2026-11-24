@@ -7,12 +7,34 @@
 #             General Settings
 # =========================================
 settings:
-  # Wybierz język pluginu (Dostępne: pl, en)
-  # Select the plugin language (Available: pl, en)
+  # Wybierz język pluginu (Dostępne: pl, en, de, es)
+  # Select the plugin language (Available: pl, en, de, es)
+  # Wählen Sie die Plugin-Sprache aus (Verfügbar: pl, en, de, es)
+  # Selecciona el idioma del plugin (Disponibles: pl, en, de, es)
   language: en
 
-  # Should the plugin check for newer versions of the plugin?
-  check-updates: true
+  update:
+    # Should the plugin check for newer versions of the plugin?
+    check-updates: true
+
+    # Should it automatically check and download the latest version of the plugin when the plugin starts?
+    auto-update: false
 
   # Should logic gate state change and general debugging be sent?
   debug-mode: false
+
+
+# =========================
+#          SOUNDS
+# =========================
+sounds:
+  success:
+    enabled: true
+    sound: "ENTITY_EXPERIENCE_ORB_PICKUP"
+    volume: 1.0
+    pitch: 1.0
+  fail:
+    enabled: true
+    sound: "BLOCK_NOTE_BLOCK_BASS"
+    volume: 1.0
+    pitch: 1.0

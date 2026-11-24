@@ -5,13 +5,15 @@ import com.google.gson.JsonObject;
 import org.bukkit.Location;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+import pl.dawcou.astrars.AstraRS;
 import pl.dawcou.astrars.gates.utils.GateUtils;
 
 import java.util.Map;
+import java.util.function.Consumer;
 
 public class GateContextFactory {
 
-    public static GateContext create(Map.Entry<String, JsonElement> entry, GateValidator validator) {
+    private static GateContext create(Map.Entry<String, JsonElement> entry, GateValidator validator, AstraRS plugin) {
         String key = entry.getKey();
         if (!entry.getValue().isJsonObject()) return null;
 
@@ -42,10 +44,10 @@ public class GateContextFactory {
                 targetBlock, backBlock, rightBlock, leftBlock
         );
 
-        // Sygnały wejściowe
-        boolean pBack = GateUtils.getPowerAt(backBlock) > 0;
-        boolean pRight = GateUtils.getPowerAt(rightBlock) > 0;
-        boolean pLeft = GateUtils.getPowerAt(leftBlock) > 0;
+        // Sygnały wejściowe: dane logiczne z kabla mają pierwszeństwo
+        boolean pBack = getInputState(backBlock, plugin);
+        boolean pRight = getInputState(rightBlock, plugin);
+        boolean pLeft = getInputState(leftBlock, plugin);
 
         boolean currentState = gateObj.has("state") && gateObj.get("state").getAsBoolean();
         int inputs = gateObj.has("inputs") ? gateObj.get("inputs").getAsInt() : 2;
@@ -54,5 +56,26 @@ public class GateContextFactory {
                 key, gateObj, loc, gate, type, currentState, inputs,
                 dirs, pBack, pRight, pLeft
         );
+    }
+
+    public static void createAndRun(Map.Entry<String, JsonElement> entry, GateValidator validator, AstraRS plugin, Consumer<GateContext> action) {
+        String key = entry.getKey();
+        Location loc = GateUtils.strToLoc(key);
+        if (loc == null) return;
+
+        // Przenosimy wykonanie na wątek regionu zanim dotkniemy świata w create()
+        plugin.getSchedulerManager().executeAt(loc, () -> {
+            GateContext ctx = create(entry, validator, plugin);
+            if (ctx != null) {
+                action.accept(ctx);
+            }
+        });
+    }
+
+    private static boolean getInputState(Block block, AstraRS plugin) {
+        Boolean dataState = GateUtils.getBooleanFrom(block, plugin);
+        return dataState != null
+                ? dataState
+                : GateUtils.getPowerAt(block) > 0;
     }
 }

@@ -14,7 +14,7 @@ messages:
   general:
     only-players: "&cTa komenda nie jest dostępna dla konsoli!"
     no-permission: "&cNie masz permisji!"
-    reload-success: "&aKonfiguracja przeładowana pomyślnie!"
+    reload-success: "&aPlugin przeładowany pomyślnie!"
 
 
   # --- Komenda Główna Bramek /bramka ---
@@ -109,3 +109,18 @@ messages:
     load-success: "&aSchemat &e%name% &7(%count% bramek) &azostał załadowany do schowka! Wpisz komendę wklejenia, aby go umieścić w świecie"
     deleted: "&aPomyślnie usunięto schemat &e%name%.json &az plików serwera"
     delete-error: "&cWystąpił błąd podczas usuwania pliku &e%name%.json&c!"
+
+
+  # --- Aktualizacja systemu ---
+  update:
+    in-progress: "&cSprawdzanie aktualizacji jest już w toku..."
+    api-error: "&cNie udało się połączyć z API Modrinth"
+    no-versions: "&cNie znaleziono żadnych opublikowanych wersji"
+    up-to-date: "&aAstraRS jest już w najnowszej wersji"
+    local-newer: "&eZainstalowana wersja jest nowsza niż najnowsza wersja opublikowana na Modrinth. Pominięto aktualizację"
+    no-files: "&cNie znaleziono pliku do pobrania dla najnowszej wersji"
+    directory-error: "&cNie udało się utworzyć folderu aktualizacji"
+    download-error: "&cNie udało się pobrać aktualizacji"
+    downloaded: "&aPomyślnie pobrano aktualizację AstraRS"
+    restart-required: "&eUruchom ponownie serwer, aby zastosować aktualizację"
+    failed: "&cWystąpił błąd podczas sprawdzania lub pobierania aktualizacji"

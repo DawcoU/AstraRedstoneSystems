@@ -56,12 +56,12 @@ public class GateGUI implements Listener {
         final JsonObject gateObj;
         final Inventory inventory;
 
-        int value;
+        double value;
         int interval;
         int scoreLimit;
         int radius;
-        int min;
-        int max;
+        double min;
+        double max;
 
         int chargeSeconds;
         int decaySeconds;
@@ -76,12 +76,12 @@ public class GateGUI implements Listener {
             this.gateObj = gateObj;
             this.inventory = inventory;
 
-            this.value = gateObj.has("value") ? gateObj.get("value").getAsInt() : 0;
+            this.value = gateObj.has("value") ? gateObj.get("value").getAsDouble() : 0.0;
+            this.min = gateObj.has("min") ? gateObj.get("min").getAsDouble() : 0.0;
+            this.max = gateObj.has("max") ? gateObj.get("max").getAsDouble() : 100.0;
             this.interval = gateObj.has("interval") ? gateObj.get("interval").getAsInt() : 20;
             this.scoreLimit = gateObj.has("score_limit") ? gateObj.get("score_limit").getAsInt() : 0;
             this.radius = gateObj.has("radius") ? gateObj.get("radius").getAsInt() : 1;
-            this.min = gateObj.has("min") ? gateObj.get("min").getAsInt() : 0;
-            this.max = gateObj.has("max") ? gateObj.get("max").getAsInt() : 100;
 
             this.chargeSeconds = Math.min(30, Math.max(10, gateObj.has("charge_seconds") ? gateObj.get("charge_seconds").getAsInt() : 10));
             this.decaySeconds = Math.min(150, Math.max(60, gateObj.has("decay_seconds") ? gateObj.get("decay_seconds").getAsInt() : 120));
@@ -95,7 +95,8 @@ public class GateGUI implements Listener {
     public void openGUI(Player player, String locKey, JsonObject gateObj, String type) {
         GateHolder holder = new GateHolder();
         String title = plugin.getLanguageManager().getMessage("gui.title").replace("%type%", type);
-        Inventory inv = Bukkit.createInventory(holder, 27, ChatColor.translateAlternateColorCodes('&', title));
+        // Zwiększamy rozmiar GUI do 36 slotów (4 rzędy), aby pomieścić więcej opcji MATH
+        Inventory inv = Bukkit.createInventory(holder, 36, ChatColor.translateAlternateColorCodes('&', title));
 
         GateSession session = new GateSession(locKey, type, gateObj, inv);
         holder.setSession(session);
@@ -115,9 +116,9 @@ public class GateGUI implements Listener {
         }
 
         switch (session.type) {
-            case "CLOCK", "CLOCK_GATE", "REPEATER" -> buildTimeGUI(session);
+            case "CLOCK", "REPEATER" -> buildTimeGUI(session);
             case "BATTERY" -> buildBatteryGUI(session);
-            case "NUMBER_GATE", "DECODER" -> buildValueGUI(session);
+            case "NUMBER_SENDER", "DECODER" -> buildValueGUI(session);
             case "COUNTER" -> buildLimitGUI(session);
             case "SENSOR" -> buildRadiusGUI(session);
             case "RANDOM_NUMBER" -> buildMinMaxGUI(session);
@@ -144,9 +145,14 @@ public class GateGUI implements Listener {
     }
 
     private void buildValueGUI(GateSession session) {
-        session.inventory.setItem(4, createItem(Material.PAPER, plugin.getLanguageManager().getMessage("gui.status-value").replace("%val%", String.valueOf(session.value))));
+        session.inventory.setItem(4, createItem(Material.PAPER,
+                plugin.getLanguageManager().getMessage("gui.status-value")
+                        .replace("%val%", String.valueOf(session.value))));
+
         session.inventory.setItem(10, createItem(Material.RED_WOOL, "&c-10"));
         session.inventory.setItem(11, createItem(Material.ORANGE_WOOL, "&6-1"));
+        session.inventory.setItem(13, createItem(Material.YELLOW_WOOL, "&e-0.1"));
+        session.inventory.setItem(14, createItem(Material.YELLOW_WOOL, "&e+0.1"));
         session.inventory.setItem(15, createItem(Material.LIME_WOOL, "&a+1"));
         session.inventory.setItem(16, createItem(Material.GREEN_WOOL, "&2+10"));
     }
@@ -166,25 +172,29 @@ public class GateGUI implements Listener {
     }
 
     private void buildMinMaxGUI(GateSession session) {
-        session.inventory.setItem(4, createItem(Material.STRUCTURE_VOID, plugin.getLanguageManager().getMessage("gui.status-random")
-                .replace("%min%", String.valueOf(session.min))
-                .replace("%max%", String.valueOf(session.max))));
+        session.inventory.setItem(4, createItem(Material.STRUCTURE_VOID,
+                plugin.getLanguageManager().getMessage("gui.status-random")
+                        .replace("%min%", String.valueOf(session.min))
+                        .replace("%max%", String.valueOf(session.max))));
 
         session.inventory.setItem(10, createItem(Material.RED_WOOL, "&cMIN -1"));
         session.inventory.setItem(11, createItem(Material.LIME_WOOL, "&aMIN +1"));
+        session.inventory.setItem(12, createItem(Material.YELLOW_WOOL, "&eMIN -0.1"));
+        session.inventory.setItem(13, createItem(Material.YELLOW_WOOL, "&eMIN +0.1"));
+
+        session.inventory.setItem(14, createItem(Material.YELLOW_WOOL, "&eMAX -0.1"));
         session.inventory.setItem(15, createItem(Material.ORANGE_WOOL, "&6MAX -1"));
         session.inventory.setItem(16, createItem(Material.GREEN_WOOL, "&2MAX +1"));
+        session.inventory.setItem(17, createItem(Material.YELLOW_WOOL, "&eMAX +0.1"));
     }
 
     private void buildBatteryGUI(GateSession session) {
-        // Górny rząd: Informacje i opcje ŁADOWANIA (10s - 30s)
         session.inventory.setItem(2, createItem(Material.REDSTONE_TORCH, "&aŁadowanie: &f" + session.chargeSeconds + "s / 1%"));
         session.inventory.setItem(10, createItem(Material.RED_WOOL, "&cŁadowanie -5s"));
         session.inventory.setItem(11, createItem(Material.ORANGE_WOOL, "&6Ładowanie -1s"));
         session.inventory.setItem(12, createItem(Material.LIME_WOOL, "&aŁadowanie +1s"));
         session.inventory.setItem(13, createItem(Material.GREEN_WOOL, "&2Ładowanie +5s"));
 
-        // Dolny rząd: Informacje i opcje ROZŁADOWYWANIA (60s - 150s)
         session.inventory.setItem(6, createItem(Material.LEVER, "&cRozładowanie: &f" + session.decaySeconds + "s / 1%"));
         session.inventory.setItem(14, createItem(Material.RED_WOOL, "&cRozładowanie -10s"));
         session.inventory.setItem(15, createItem(Material.ORANGE_WOOL, "&6Rozładowanie -1s"));
@@ -194,11 +204,23 @@ public class GateGUI implements Listener {
 
     private void buildMathGUI(GateSession session) {
         session.inventory.setItem(4, createItem(Material.BOOK, plugin.getLanguageManager().getMessage("gui.status-mode").replace("%mode%", session.mode)));
-        session.inventory.setItem(11, createItem(Material.PAPER, "&eADD (+)"));
-        session.inventory.setItem(12, createItem(Material.PAPER, "&eSUB (-)"));
-        session.inventory.setItem(13, createItem(Material.PAPER, "&eMUL (*)"));
-        session.inventory.setItem(14, createItem(Material.PAPER, "&eDIV (/)"));
-        session.inventory.setItem(15, createItem(Material.PAPER, "&ePOW (^)"));
+
+        // Rząd 1: Podstawowe i zaawansowane operacje
+        session.inventory.setItem(10, createItem(Material.PAPER, "&eADD (+)"));
+        session.inventory.setItem(11, createItem(Material.PAPER, "&eSUB (-)"));
+        session.inventory.setItem(12, createItem(Material.PAPER, "&eMUL (*)"));
+        session.inventory.setItem(13, createItem(Material.PAPER, "&eDIV (/)"));
+        session.inventory.setItem(14, createItem(Material.PAPER, "&ePOW (^)"));
+        session.inventory.setItem(15, createItem(Material.PAPER, "&eMOD (%)"));
+        session.inventory.setItem(16, createItem(Material.PAPER, "&eMIN"));
+
+        // Rząd 2: Nowe operacje (MIN, MAX, SQRT, ROOT, AVG, ABS, HYPOT)
+        session.inventory.setItem(19, createItem(Material.PAPER, "&eMAX"));
+        session.inventory.setItem(20, createItem(Material.PAPER, "&eSQRT"));
+        session.inventory.setItem(21, createItem(Material.PAPER, "&eROOT"));
+        session.inventory.setItem(22, createItem(Material.PAPER, "&eAVG"));
+        session.inventory.setItem(23, createItem(Material.PAPER, "&eABS"));
+        session.inventory.setItem(24, createItem(Material.PAPER, "&eHYPOT"));
     }
 
     private void buildComparatorGUI(GateSession session) {
@@ -213,25 +235,20 @@ public class GateGUI implements Listener {
 
     @EventHandler
     public void onInventoryClick(InventoryClickEvent e) {
-        // 1. Sprawdzamy holdera i natychmiast anulujemy interakcję
         if (!(e.getInventory().getHolder() instanceof GateHolder holder)) {
             return;
         }
         e.setCancelled(true);
 
         if (!(e.getWhoClicked() instanceof Player player)) return;
-
-        // 2. Ignorujemy kliknięcia poza okno lub w dolny ekwipunek gracza
         if (e.getClickedInventory() == null || !e.getClickedInventory().equals(e.getInventory())) return;
 
-        // 3. Pobieramy sesję z holdera
         GateSession session = holder.getSession();
         if (session == null) return;
 
         int slot = e.getSlot();
         boolean updated = false;
 
-        // 4. Obsługa kliknięć w sloty
         switch (session.type) {
             case "OR", "NOR", "AND", "NAND", "XOR", "XNOR" -> {
                 if (slot == 13) {
@@ -240,40 +257,57 @@ public class GateGUI implements Listener {
                 }
             }
 
-            case "CLOCK", "CLOCK_GATE", "REPEATER" -> {
-                if (slot == 10) { session.interval = Math.max(1, session.interval - 10); updated = true; }
-                else if (slot == 11) { session.interval = Math.max(1, session.interval - 1); updated = true; }
-                else if (slot == 15) { session.interval += 1; updated = true; }
+            case "CLOCK", "REPEATER" -> {
+                if (slot == 15) { session.interval += 1; updated = true; }
                 else if (slot == 16) { session.interval += 10; updated = true; }
             }
-            case "NUMBER_GATE", "DECODER" -> {
-                if (slot == 10) { session.value -= 10; updated = true; }
-                else if (slot == 11) { session.value -= 1; updated = true; }
-                else if (slot == 15) { session.value += 1; updated = true; }
-                else if (slot == 16) { session.value += 10; updated = true; }
+            case "NUMBER_SENDER", "DECODER" -> {
+                if (slot == 10) { session.value -= 10.0; updated = true; }
+                else if (slot == 11) { session.value -= 1.0; updated = true; }
+                else if (slot == 13) { session.value = Math.round((session.value - 0.1) * 10.0) / 10.0; updated = true; }
+                else if (slot == 14) { session.value = Math.round((session.value + 0.1) * 10.0) / 10.0; updated = true; }
+                else if (slot == 15) { session.value += 1.0; updated = true; }
+                else if (slot == 16) { session.value += 10.0; updated = true; }
             }
             case "COUNTER" -> {
-                if (slot == 10) { session.scoreLimit = Math.max(0, session.scoreLimit - 10); updated = true; }
-                else if (slot == 11) { session.scoreLimit = Math.max(0, session.scoreLimit - 1); updated = true; }
-                else if (slot == 15) { session.scoreLimit += 1; updated = true; }
+                if (slot == 15) { session.scoreLimit += 1; updated = true; }
                 else if (slot == 16) { session.scoreLimit += 10; updated = true; }
             }
             case "SENSOR" -> {
-                if (slot == 11) { session.radius = Math.max(1, session.radius - 1); updated = true; }
-                else if (slot == 15) { session.radius += 1; updated = true; }
+                if (slot == 15) { session.radius += 1; updated = true; }
             }
             case "RANDOM_NUMBER" -> {
-                if (slot == 10) { session.min -= 1; updated = true; }
-                else if (slot == 11) { session.min += 1; updated = true; }
-                else if (slot == 15) { session.max -= 1; updated = true; }
-                else if (slot == 16) { session.max += 1; updated = true; }
+                double step = (slot == 12 || slot == 13 || slot == 14 || slot == 17) ? 0.1 : 1.0;
+                if (slot == 10) { session.min -= 1.0; updated = true; }
+                else if (slot == 11) { session.min += 1.0; updated = true; }
+                else if (slot == 12) { session.min -= step; updated = true; }
+                else if (slot == 13) { session.min += step; updated = true; }
+                else if (slot == 14) { session.max -= step; updated = true; }
+                else if (slot == 15) { session.max -= 1.0; updated = true; }
+                else if (slot == 16) { session.max += 1.0; updated = true; }
+                else if (slot == 17) { session.max += step; updated = true; }
+
+                if (updated) {
+                    if (session.min > session.max) {
+                        if (slot <= 13) { session.min = session.max; }
+                        else { session.max = session.min; }
+                    }
+                }
             }
             case "MATH" -> {
-                if (slot == 11) { session.mode = "ADD"; updated = true; }
-                else if (slot == 12) { session.mode = "SUB"; updated = true; }
-                else if (slot == 13) { session.mode = "MUL"; updated = true; }
-                else if (slot == 14) { session.mode = "DIV"; updated = true; }
-                else if (slot == 15) { session.mode = "POW"; updated = true; }
+                if (slot == 10) { session.mode = "ADD"; updated = true; }
+                else if (slot == 11) { session.mode = "SUB"; updated = true; }
+                else if (slot == 12) { session.mode = "MUL"; updated = true; }
+                else if (slot == 13) { session.mode = "DIV"; updated = true; }
+                else if (slot == 14) { session.mode = "POW"; updated = true; }
+                else if (slot == 15) { session.mode = "MOD"; updated = true; }
+                else if (slot == 16) { session.mode = "MIN"; updated = true; }
+                else if (slot == 19) { session.mode = "MAX"; updated = true; }
+                else if (slot == 20) { session.mode = "SQRT"; updated = true; }
+                else if (slot == 21) { session.mode = "ROOT"; updated = true; }
+                else if (slot == 22) { session.mode = "AVG"; updated = true; }
+                else if (slot == 23) { session.mode = "ABS"; updated = true; }
+                else if (slot == 24) { session.mode = "HYPOT"; updated = true; }
             }
             case "COMPARATOR" -> {
                 if (slot == 10) { session.mode = "EQUALS"; updated = true; }
@@ -284,27 +318,18 @@ public class GateGUI implements Listener {
                 else if (slot == 15) { session.mode = "LESS_OR_EQUAL"; updated = true; }
             }
             case "BATTERY" -> {
-                // Ładowanie (sloty 10-13, limit: 10s - 30s)
-                if (slot == 10) { session.chargeSeconds = Math.max(10, session.chargeSeconds - 5); updated = true; }
-                else if (slot == 11) { session.chargeSeconds = Math.max(10, session.chargeSeconds - 1); updated = true; }
-                else if (slot == 12) { session.chargeSeconds = Math.min(30, session.chargeSeconds + 1); updated = true; }
+                if (slot == 12) { session.chargeSeconds = Math.min(30, session.chargeSeconds + 1); updated = true; }
                 else if (slot == 13) { session.chargeSeconds = Math.min(30, session.chargeSeconds + 5); updated = true; }
-
-                // Rozładowywanie (sloty 14-17, limit: 60s - 150s)
-                else if (slot == 14) { session.decaySeconds = Math.max(60, session.decaySeconds - 10); updated = true; }
-                else if (slot == 15) { session.decaySeconds = Math.max(60, session.decaySeconds - 1); updated = true; }
                 else if (slot == 16) { session.decaySeconds = Math.min(150, session.decaySeconds + 1); updated = true; }
                 else if (slot == 17) { session.decaySeconds = Math.min(150, session.decaySeconds + 10); updated = true; }
             }
         }
 
-        // 5. Jeśli wartość się zmieniła, zapisujemy do JSON i odświeżamy
         if (updated) {
             switch (session.type) {
                 case "OR", "NOR", "AND", "NAND", "XOR", "XNOR" -> session.gateObj.addProperty("inputs", session.inputs);
-
-                case "CLOCK", "CLOCK_GATE", "REPEATER" -> session.gateObj.addProperty("interval", session.interval);
-                case "NUMBER_GATE", "DECODER" -> session.gateObj.addProperty("value", session.value);
+                case "CLOCK", "REPEATER" -> session.gateObj.addProperty("interval", session.interval);
+                case "NUMBER_SENDER", "DECODER" -> session.gateObj.addProperty("value", session.value);
                 case "COUNTER" -> session.gateObj.addProperty("score_limit", session.scoreLimit);
                 case "SENSOR" -> session.gateObj.addProperty("radius", session.radius);
                 case "RANDOM_NUMBER" -> {
@@ -323,9 +348,8 @@ public class GateGUI implements Listener {
 
             String valStr = switch (session.type) {
                 case "OR", "NOR", "AND", "NAND", "XOR", "XNOR" -> session.inputs + " Inputs";
-
-                case "CLOCK", "CLOCK_GATE", "REPEATER" -> session.interval + " Ticks";
-                case "NUMBER_GATE", "DECODER" -> String.valueOf(session.value);
+                case "CLOCK", "REPEATER" -> session.interval + " Ticks";
+                case "NUMBER_SENDER", "DECODER" -> String.valueOf(session.value);
                 case "COUNTER" -> String.valueOf(session.scoreLimit);
                 case "SENSOR" -> String.valueOf(session.radius);
                 case "RANDOM_NUMBER" -> session.min + " - " + session.max;

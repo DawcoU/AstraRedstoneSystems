@@ -1,6 +1,7 @@
 package pl.dawcou.astrars.gates.types;
 
 import com.google.gson.JsonElement;
+import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
@@ -11,7 +12,6 @@ import org.bukkit.block.BlockFace;
 
 import pl.dawcou.astrars.AstraRS;
 import pl.dawcou.astrars.file.GateDataManager;
-import pl.dawcou.astrars.gates.data.GateContext;
 import pl.dawcou.astrars.gates.data.GateContextFactory;
 import pl.dawcou.astrars.gates.data.GateValidator;
 import pl.dawcou.astrars.gates.utils.GateUtils;
@@ -23,14 +23,23 @@ public class DataGates {
     private final AstraRS plugin;
     private final GateValidator validator;
 
-    private static final Set<String> BACK_GATES = Set.of("DISPLAY", "TRANSISTOR", "DISK_GATE", "RAM_GATE", "BATTERY", "DATA_DETECTOR");
-    private static final Set<String> OUT_GATES = Set.of("TRANSISTOR", "DISK_GATE", "RAM_GATE", "BATTERY", "DATA_DETECTOR");
-    private static final Set<String> SIDE_GATES = Set.of("TRANSISTOR", "DISK_GATE", "RAM_GATE");
+    private static final Set<String> HANDLED_TYPES = Set.of(
+            "CABLE_DATA", "DISPLAY", "TRANSISTOR", "DISK",
+            "RAM", "BATTERY", "DATA_DETECTOR"
+    );
+
+    private static final Set<String> BACK_GATES = Set.of("DISPLAY", "TRANSISTOR", "DISK", "RAM", "BATTERY", "DATA_DETECTOR");
+    private static final Set<String> OUT_GATES = Set.of("TRANSISTOR", "DISK", "RAM", "BATTERY", "DATA_DETECTOR");
+    private static final Set<String> SIDE_GATES = Set.of("TRANSISTOR", "DISK", "RAM");
 
     public DataGates(AstraRS plugin, GateValidator validator) {
         this.plugin = plugin;
         this.validator = validator;
     }
+
+    // --------------------------------------------------
+    // GŁÓWNA PĘTLA
+    // --------------------------------------------------
 
     public void runDataGates() {
         GateDataManager manager = plugin.getGateDataManager();
@@ -38,421 +47,353 @@ public class DataGates {
         if (gatesSection == null) return;
 
         for (Map.Entry<String, JsonElement> entry : gatesSection.entrySet()) {
-            GateContext ctx = GateContextFactory.create(entry, validator);
-            if (ctx == null) continue;
+            GateContextFactory.createAndRun(entry, validator, plugin, ctx -> {
+                if (ctx == null) return;
 
-            JsonObject gateObj = ctx.json();
-            Block gate = ctx.gateBlock();
-            String key = ctx.key();
-            String type = ctx.type();
+                if (!HANDLED_TYPES.contains(ctx.type())) return;
 
-            // --- EFEKTY WIZUALNE STATUSU ---
-            if (BACK_GATES.contains(type)) {
-                boolean currentState = ctx.currentState();
+                JsonObject gateObj = ctx.json();
+                Block gate = ctx.gateBlock();
+                String key = ctx.key();
+                String type = ctx.type();
 
-                // 1. EFEKT WYJŚCIA (Włączony dla Transistora, Variable i teraz dla sprawnych Baterii)
-                if (OUT_GATES.contains(type)) {
-                    GateUtils.spawnStatusParticle(gate, ctx.dirs().out(), currentState);
+                if (BACK_GATES.contains(type)) {
+                    boolean currentState = ctx.currentState();
+
+                    if (OUT_GATES.contains(type)) {
+                        GateUtils.spawnStatusParticle(gate, ctx.dirs().out(), currentState);
+                    }
+
+                    JsonElement vBack = GateUtils.getDataFrom(ctx.dirs().backBlock(), plugin);
+                    boolean isActive = GateUtils.isDataSignalActive(vBack);
+
+                    GateUtils.spawnStatusParticle(gate, ctx.dirs().back(), isActive || ctx.pBack());
+
+                    if (SIDE_GATES.contains(type)) {
+                        GateUtils.spawnStatusParticle(gate, ctx.dirs().left(), ctx.pLeft());
+                        GateUtils.spawnStatusParticle(gate, ctx.dirs().right(), ctx.pRight());
+                    }
                 }
 
-                // 2. EFEKT WEJŚCIA Z TYŁU (Zawsze dla wszystkich w tym bloku, w tym dla ładującej się baterii)
-                String vBack = GateUtils.getStringFrom(ctx.dirs().backBlock(), plugin);
-                boolean isActive = !vBack.isEmpty();
+                switch (type) {
+                    case "CABLE_DATA" -> {
+                        JsonElement bestValue = null;
+                        long maxPower = 0;
+                        long myCurrentPower = gateObj.has("power") ? gateObj.get("power").getAsLong() : 0L;
 
-                GateUtils.spawnStatusParticle(gate, ctx.dirs().back(), isActive || ctx.pBack());
+                        JsonElement currentOut = gateObj.has("current_out") ? gateObj.get("current_out") : null;
+                        if (currentOut != null && currentOut.isJsonNull()) currentOut = null;
 
-                // 3. EFEKT BLOKADY Z BOKÓW (Tylko dla tych, które mają logikę blokowania)
-                if (SIDE_GATES.contains(type)) {
-                    GateUtils.spawnStatusParticle(gate, ctx.dirs().left(), ctx.pLeft());  // Lewy bok
-                    GateUtils.spawnStatusParticle(gate, ctx.dirs().right(), ctx.pRight()); // Prawy bok
-                }
-            }
+                        for (BlockFace face : BlockFace.values()) {
+                            if (!face.isCartesian()) continue;
+                            Block neighbor = gate.getRelative(face);
+                            String neighborKey = GateUtils.locToStr(neighbor.getLocation());
+                            JsonObject neighborObj = manager.getGate(neighborKey);
 
-            // --- LOGIKA BRAMEK ---
-            switch (type) {
-                case "CABLE_DATA" -> {
-                    String bestValue = String.valueOf(Long.MIN_VALUE);
-                    long maxPower = 0;
-                    long myCurrentPower = gateObj.has("power") ? gateObj.get("power").getAsLong() : 0;
-                    String currentOut = gateObj.has("current_out") ? gateObj.get("current_out").getAsString() : String.valueOf(Long.MIN_VALUE);
+                            if (neighborObj == null) continue;
 
-                    for (BlockFace face : BlockFace.values()) {
-                        if (!face.isCartesian()) continue;
-                        Block neighbor = gate.getRelative(face);
-                        String neighborKey = GateUtils.locToStr(neighbor.getLocation());
-                        JsonObject neighborObj = manager.getGate(neighborKey);
+                            String nType = neighborObj.has("type") ? neighborObj.get("type").getAsString() : "";
 
-                        if (neighborObj == null) continue;
+                            if (!nType.equals("CABLE_DATA")) {
+                                boolean isActive = neighborObj.has("state") && neighborObj.get("state").getAsBoolean();
+                                if (!isActive) continue;
+                            }
 
-                        String nType = neighborObj.has("type") ? neighborObj.get("type").getAsString() : "";
+                            JsonElement incoming = GateUtils.getDataFrom(neighbor, plugin);
+                            if (incoming == null || incoming.isJsonNull()) continue;
 
-                        if (!nType.equals("CABLE_DATA")) {
-                            boolean isActive = neighborObj.has("state") && neighborObj.get("state").getAsBoolean();
-                            if (!isActive) continue; // Ignorujemy tylko wyłączone bramki
-                        }
-
-                        String incoming = GateUtils.getStringFrom(neighbor, plugin);
-
-                        // ZABEZPIECZENIE: Ignorujemy puste dane oraz flagę braku sygnału (Long.MIN_VALUE)
-                        if (incoming == null || incoming.isEmpty() || incoming.equals(String.valueOf(Long.MIN_VALUE))) {
-                            continue;
-                        }
-
-                        long neighborPower;
-                        if (!nType.equals("CABLE_DATA")) {
-                            String nOutStr = neighborObj.has("out") ? neighborObj.get("out").getAsString() : "NORTH";
-                            BlockFace nOut = BlockFace.valueOf(nOutStr.toUpperCase());
-                            if (neighbor.getRelative(nOut).getLocation().equals(gate.getLocation())) {
-                                neighborPower = 300;
+                            long neighborPower;
+                            if (!nType.equals("CABLE_DATA")) {
+                                String nOutStr = neighborObj.has("out") ? neighborObj.get("out").getAsString() : "NORTH";
+                                BlockFace nOut = BlockFace.valueOf(nOutStr.toUpperCase());
+                                if (neighbor.getRelative(nOut).getLocation().equals(gate.getLocation())) {
+                                    neighborPower = 300;
+                                } else {
+                                    neighborPower = 0;
+                                }
                             } else {
-                                neighborPower = 0;
+                                neighborPower = neighborObj.has("power") ? neighborObj.get("power").getAsLong() : 0L;
+                            }
+
+                            if (GateUtils.areJsonElementsEqual(incoming, currentOut) && neighborPower <= myCurrentPower) {
+                                continue;
+                            }
+
+                            if (neighborPower > maxPower) {
+                                maxPower = neighborPower;
+                                bestValue = incoming.deepCopy();
+                            }
+                        }
+
+                        long newPower = Math.max(0, maxPower - 1);
+
+                        boolean valueChanged = (currentOut == null && bestValue != null) ||
+                                (currentOut != null && !GateUtils.areJsonElementsEqual(currentOut, bestValue));
+                        boolean powerChanged = (newPower != myCurrentPower);
+
+                        if (valueChanged || powerChanged) {
+                            if (bestValue == null) {
+                                gateObj.remove("current_out");
+                            } else {
+                                gateObj.add("current_out", bestValue.deepCopy());
+                            }
+                            gateObj.addProperty("power", newPower);
+
+                            if (plugin.isDebugEnabled() && valueChanged) {
+                                String newValStr = (bestValue == null) ? "NONE" : bestValue.toString();
+                                Bukkit.getConsoleSender().sendMessage(
+                                        AstraRS.DEBUG_PREFIX + "§9CABLE_DATA §7at §e" + key +
+                                                " §7changed signal: §b" + newValStr + " §7(Power: §3" + newPower + "§7)"
+                                );
+                            }
+                        }
+
+                        if (bestValue != null && newPower > 0) {
+                            Location pLoc = gate.getLocation().clone().add(0.5, 1.1, 0.5);
+                            gate.getWorld().spawnParticle(Particle.REDSTONE, pLoc, 2, 0, 0, 0, 0, new Particle.DustOptions(Color.AQUA, 1.0F));
+                        }
+                    }
+
+                    case "DISPLAY" -> {
+                        if (!plugin.isTextDisplaySupported()) return;
+
+                        Location gateLoc = gate.getLocation();
+                        if (!gateLoc.getChunk().isLoaded()) return;
+
+                        JsonElement incoming = GateUtils.getDataFrom(ctx.dirs().backBlock(), plugin);
+                        String rawData = (incoming == null || incoming.isJsonNull()) ? "" : incoming.getAsString();
+
+                        String oldUuidStr = gateObj.has("displayUUID") ? gateObj.get("displayUUID").getAsString() : "";
+                        String uuidStr = GateUtils.validateDisplay(gateObj, gateLoc);
+                        gateObj.addProperty("displayUUID", uuidStr);
+
+                        JsonElement lastOut = gateObj.has("current_out") ? gateObj.get("current_out") : null;
+                        boolean isNewHologram = !uuidStr.equals(oldUuidStr);
+                        boolean dataChanged = !GateUtils.areJsonElementsEqual(incoming, lastOut);
+
+                        if (dataChanged || isNewHologram) {
+                            if (uuidStr.isEmpty()) return;
+
+                            // Sprawdzamy null jako jedyny wyznacznik braku danych
+                            String formattedData;
+                            if (incoming == null || incoming.isJsonNull()) {
+                                formattedData = ""; // Brak danych (czyścimy)
+                            } else {
+                                formattedData = rawData.isEmpty() ? "" : "§f" + rawData; // Pusty string to też dane, ale wyświetlamy czysto
+                            }
+
+                            GateUtils.updateDisplayNumber(uuidStr, formattedData);
+
+                            gateObj.add("current_out", incoming == null ? JsonNull.INSTANCE : incoming.deepCopy());
+
+                            if (plugin.isDebugEnabled()) {
+                                Bukkit.getConsoleSender().sendMessage(
+                                        AstraRS.DEBUG_PREFIX + "§fDISPLAY §7at §e" + key +
+                                                " §7" + (isNewHologram ? "recreated hologram and set" : "refreshed") +
+                                                " text to: " + formattedData
+                                );
+                            }
+                        }
+                    }
+
+                    case "TRANSISTOR" -> {
+                        JsonElement incoming = GateUtils.getDataFrom(ctx.dirs().backBlock(), plugin);
+                        boolean isBlocked = ctx.pLeft() || ctx.pRight();
+
+                        JsonElement result = (isBlocked || incoming == null || incoming.isJsonNull()) ? null : incoming.deepCopy();
+                        boolean hasPower = GateUtils.isDataSignalActive(result);
+
+                        JsonElement lastOut = gateObj.has("current_out") ? gateObj.get("current_out") : null;
+                        boolean lastState = ctx.currentState();
+
+                        if (!GateUtils.areJsonElementsEqual(result, lastOut)) {
+                            if (plugin.isDebugEnabled()) {
+                                String statusColor = isBlocked ? "§c[BLOCKED]" : "§a[FLOW]";
+                                Bukkit.getConsoleSender().sendMessage(
+                                        AstraRS.DEBUG_PREFIX + "§6TRANSISTOR §7at §e" + key +
+                                                " " + statusColor + " §7Back: " + (incoming == null ? "NONE" : incoming) +
+                                                " §7-> Output: " + (result == null ? "NONE" : result)
+                                );
+                            }
+                            gateObj.add("current_out", result == null ? JsonNull.INSTANCE : result.deepCopy());
+                        }
+
+                        if (hasPower != lastState) {
+                            gateObj.addProperty("state", hasPower);
+                            GateUtils.updateOutput(plugin, key, ctx.dirs().targetBlock(), hasPower);
+                        }
+                    }
+
+                    case "DISK" -> {
+                        boolean reset = ctx.pRight() || ctx.pLeft();
+                        JsonElement currentStored = gateObj.has("value") ? gateObj.get("value") : null;
+                        if (currentStored != null && currentStored.isJsonNull()) currentStored = null;
+                        boolean previousState = ctx.currentState();
+
+                        if (reset) {
+                            if (currentStored != null || previousState) {
+                                gateObj.add("value", JsonNull.INSTANCE);
+                                gateObj.add("current_out", JsonNull.INSTANCE);
+                                gateObj.addProperty("state", false);
+                                GateUtils.updateOutput(plugin, key, ctx.dirs().targetBlock(), false);
+
+                                if (plugin.isDebugEnabled()) {
+                                    Bukkit.getConsoleSender().sendMessage(AstraRS.DEBUG_PREFIX + "§dDISK §e" + key + " §cRESET BY side signal!");
+                                }
+                                currentStored = null;
                             }
                         } else {
-                            neighborPower = neighborObj.has("power") ? neighborObj.get("power").getAsLong() : 0;
-                        }
-
-                        // BLOKADA ANTY-ECHO / ANTY-SPAM:
-                        // Jeśli sąsiad to kabel, ma taki sam tekst jak nasz obecny i jego moc jest MNIEJSZA lub równa naszej,
-                        // to oznacza, że on żywi się NASZYM sygnałem! Ignorujemy go, żeby nie stworzyć pętli zwrotnej.
-                        if (nType.equals("CABLE_DATA") && incoming.equals(currentOut) && neighborPower <= myCurrentPower) {
-                            continue;
-                        }
-
-                        if (neighborPower > maxPower) {
-                            maxPower = neighborPower;
-                            bestValue = incoming;
-                        }
-                    }
-
-                    long newPower = Math.max(0, maxPower - 1);
-
-                    // Logika aktualizacji
-                    if (!bestValue.equals(currentOut) || newPower != myCurrentPower) {
-                        gateObj.addProperty("current_out", bestValue);
-                        gateObj.addProperty("power", newPower);
-
-                        if (plugin.isDebugMode()) {
-                            Bukkit.getConsoleSender().sendMessage(
-                                    AstraRS.DEBUG_PREFIX + "§9CABLE_DATA §7at §e" + key +
-                                            " §7changed state: §b\"" + (bestValue.isEmpty() ? "EMPTY" : bestValue) + "\" §7(Power: §3" + newPower + "§7)"
-                            );
-                        }
-                    }
-
-                    // Efekt wizualny
-                    if (!bestValue.isEmpty() && newPower > 0) {
-                        Location pLoc = gate.getLocation().clone().add(0.5, 1.1, 0.5);
-                        gate.getWorld().spawnParticle(Particle.REDSTONE, pLoc, 2, 0, 0, 0, 0, new Particle.DustOptions(Color.AQUA, 1.0F));
-                    }
-                }
-
-                case "DISPLAY" -> {
-                    if (!plugin.isTextDisplaySupported()) {
-                        continue;
-                    }
-
-                    Location gateLoc = gate.getLocation();
-
-                    // Jeśli chunk z bramką jest odładowany, nie robimy absolutnie nic
-                    if (!gateLoc.getChunk().isLoaded()) {
-                        continue;
-                    }
-
-                    String rawData = GateUtils.getStringFrom(ctx.dirs().backBlock(), plugin);
-
-                    // Pobieramy stary UUID do porównania
-                    String oldUuidStr = gateObj.has("displayUUID") ? gateObj.get("displayUUID").getAsString() : "";
-                    String uuidStr = GateUtils.validateDisplay(gateObj, gateLoc);
-
-                    gateObj.addProperty("displayUUID", uuidStr);
-
-                    String lastOut = gateObj.has("current_out") ? gateObj.get("current_out").getAsString() : "";
-                    boolean isNewHologram = !uuidStr.equals(oldUuidStr);
-
-                    // Aktualizacja tekstu tylko przy zmianie danych LUB nowym hologramie (w załadowanym chunku!)
-                    if (!rawData.equals(lastOut) || isNewHologram) {
-
-                        // Jeśli z jakiegoś powodu uuidStr jest pusty (bo chunk był odładowany), pomijamy update tekstu
-                        if (uuidStr.isEmpty()) {
-                            continue;
-                        }
-
-                        // Zawsze biały kolor tekstu
-                        String formattedData = rawData.isEmpty() ? "" : "§f" + rawData;
-
-                        GateUtils.updateDisplayNumber(uuidStr, formattedData);
-                        gateObj.addProperty("current_out", rawData);
-
-                        if (plugin.isDebugMode()) {
-                            Bukkit.getConsoleSender().sendMessage(
-                                    AstraRS.DEBUG_PREFIX + "§fDISPLAY §7at §e" + key +
-                                            " §7" + (isNewHologram ? "recreated hologram and set" : "refreshed") +
-                                            " text to: " + formattedData
-                            );
-                        }
-                    }
-                }
-
-                case "TRANSISTOR" -> {
-                    // Próbujemy pobrać tekst z kabla z tyłu
-                    String incomingString = GateUtils.getStringFrom(ctx.dirs().backBlock(), plugin);
-
-                    // Wybieramy co faktycznie płynie z tyłu
-                    boolean incomingHasPower = !incomingString.isEmpty();
-
-                    // Blokada z BOKÓW (lewy lub prawy) - używamy metody do zwykłego prądu!
-                    long blockL = GateUtils.getPowerAt(ctx.dirs().leftBlock()); // Lewo
-                    long blockR = GateUtils.getPowerAt(ctx.dirs().rightBlock()); // Prawo
-                    boolean isBlocked = (blockL > 0 || blockR > 0);
-
-                    // SYSTEMOWA POPRAWKA: Jeśli jest blokada lub brak sygnału z tyłu, wyjściem jest pustka ""
-                    String result = (isBlocked || !incomingHasPower) ? "" : incomingString;
-                    boolean hasPower = !result.isEmpty();
-
-                    String lastOut = gateObj.has("current_out") ? gateObj.get("current_out").getAsString() : "";
-                    boolean lastState = ctx.currentState(); // <--- POBIERAMY STARY STAN FIZYCZNY
-
-                    // 1. Zapis tekstowy w configu i logi robimy, jeśli zmieniła się treść danych
-                    if (!result.equals(lastOut)) {
-                        if (plugin.isDebugMode()) {
-                            String statusColor = isBlocked ? "§c[BLOKADA]" : "§a[PRZEPŁYW]";
-                            Bukkit.getConsoleSender().sendMessage(
-                                    AstraRS.DEBUG_PREFIX + "§6TRANSISTOR §7at §e" + key +
-                                            " " + statusColor + " §7Back signal: §b\"" + (incomingString.isEmpty() ? "NONE" : incomingString) + "\"" +
-                                            " §7-> Output: §d\"" + (result.isEmpty() ? "EMPTY" : result) + "\""
-                            );
-                        }
-                        gateObj.addProperty("current_out", result);
-                    }
-
-                    // 2. FIZYCZNĄ AKTUALIZACJĘ ŚWIATA ROBIMY TYLKO WTEDY, GDY ZMIENIŁO SIĘ STAN WŁĄCZONY/WYŁĄCZONY!
-                    if (hasPower != lastState) {
-                        gateObj.addProperty("state", hasPower);
-                        GateUtils.updateOutput(plugin, key, ctx.dirs().targetBlock(), hasPower); // <--- ŚWIAT AKTUALIZUJE SIĘ TYLKO PRZY REALNEJ ZMIANIE SZYNY!
-                    }
-                }
-
-                case "DISK_GATE" -> {
-                    // 1. Sprawdzamy boki (right i left) pod kątem sygnału Reset
-                    boolean reset = ctx.pRight() || ctx.pLeft();
-
-                    String currentStored = gateObj.has("value") ? gateObj.get("value").getAsString() : "";
-                    boolean previousState = ctx.currentState();
-
-                    if (reset) {
-                        // Odpalamy logikę resetu TYLKO jeśli bramka faktycznie NIE JEST jeszcze pusta
-                        if (!currentStored.isEmpty() || previousState) {
-                            gateObj.addProperty("value", "");
-                            gateObj.addProperty("current_out", "");
-                            gateObj.addProperty("state", false);
-
-                            GateUtils.updateOutput(plugin, key, ctx.dirs().targetBlock(), false);
-
-                            if (plugin.isDebugMode()) {
-                                Bukkit.getConsoleSender().sendMessage(AstraRS.DEBUG_PREFIX + "§dDISK_GATE §e" + key + " §cRESET BY side signal!");
-                            }
-
-                            // Wyczyszczone lokalnie, żeby sekcja poniżej zapisała czysty stan do pliku
-                            currentStored = "";
-                            gateObj.addProperty("value", "");
-                        }
-                    } else {
-                        // AKCJA: Dane z tyłu zbieramy i zapisujemy TYLKO wtedy, gdy NIE MA RESETU!
-                        // 2. Pobieramy dane z wejścia (tył) jako uniwersalny tekst/liczba
-                        String incoming = GateUtils.getStringFrom(ctx.dirs().backBlock(), plugin);
-
-                        // 3. Logika "Zatrzymania" (Latch)
-                        if (!incoming.isEmpty()) {
-                            if (!incoming.equals(currentStored)) {
-                                gateObj.addProperty("value", incoming);
-                                currentStored = incoming;
-                                if (plugin.isDebugMode()) {
-                                    Bukkit.getConsoleSender().sendMessage(AstraRS.DEBUG_PREFIX + "§dDISK_GATE §e" + key + " §7saved new value: §b\"" + incoming + "\"");
+                            JsonElement incoming = GateUtils.getDataFrom(ctx.dirs().backBlock(), plugin);
+                            if (incoming != null && !incoming.isJsonNull()) {
+                                if (!GateUtils.areJsonElementsEqual(incoming, currentStored)) {
+                                    currentStored = incoming.deepCopy();
+                                    gateObj.add("value", currentStored.deepCopy());
+                                    if (plugin.isDebugEnabled()) {
+                                        Bukkit.getConsoleSender().sendMessage(AstraRS.DEBUG_PREFIX + "§dDISK §e" + key + " §7saved new value: §b" + currentStored);
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    // 4. Logika wyjścia - Zawsze sprawdzana, gwarantuje, że KAŻDA bramka zresetuje się równo!
-                    boolean hasState = !currentStored.isEmpty();
-                    previousState = gateObj.has("state") && gateObj.get("state").getAsBoolean(); // Pobieramy stan na nowo po if(reset)
+                        boolean hasState = GateUtils.isDataSignalActive(currentStored);
+                        previousState = gateObj.has("state") && gateObj.get("state").getAsBoolean();
 
-                    if (hasState != previousState) {
-                        gateObj.addProperty("state", hasState);
-                        GateUtils.updateOutput(plugin, key, ctx.dirs().targetBlock(), hasState);
-                    }
-
-                    // Synchronizacja uniwersalnego wyjścia tekstowego (To czyści current_out do spodu!)
-                    String currentOut = gateObj.has("current_out") ? gateObj.get("current_out").getAsString() : "";
-                    if (!currentStored.equals(currentOut)) {
-                        gateObj.addProperty("current_out", currentStored);
-                    }
-                }
-
-                case "RAM_GATE" -> {
-                    // 1. Sprawdzamy boki (right i left) pod kątem sygnału Reset i zasilania
-                    boolean reset = ctx.pLeft();
-                    boolean power = ctx.pRight();
-
-                    String currentStored = gateObj.has("value") ? gateObj.get("value").getAsString() : "";
-                    boolean previousState = ctx.currentState();
-
-                    if (reset || !power) {
-                        // Odpalamy logikę resetu TYLKO jeśli bramka faktycznie NIE JEST jeszcze pusta
-                        if (!currentStored.isEmpty() || previousState) {
-                            GateUtils.updateOutput(plugin, key, ctx.dirs().targetBlock(), false);
-
-                            if (plugin.isDebugMode()) {
-                                Bukkit.getConsoleSender().sendMessage(AstraRS.DEBUG_PREFIX + "§dRAM_GATE §e" + key + " §cRESET BY side signal!");
-                            }
-
-                            // Wyczyszczone lokalnie, żeby sekcja poniżej zapisała czysty stan do pliku
-                            currentStored = "";
-                            gateObj.addProperty("value", "");
+                        if (hasState != previousState) {
+                            gateObj.addProperty("state", hasState);
+                            GateUtils.updateOutput(plugin, key, ctx.dirs().targetBlock(), hasState);
                         }
-                    } else {
-                        // AKCJA: Dane z tyłu zbieramy i zapisujemy TYLKO wtedy, gdy NIE MA RESETU!
-                        // 2. Pobieramy dane z wejścia (tył) jako uniwersalny tekst/liczba
-                        String incoming = GateUtils.getStringFrom(ctx.dirs().backBlock(), plugin);
 
-                        // 3. Logika "Zatrzymania" (Latch)
-                        if (!incoming.isEmpty()) {
-                            if (!incoming.equals(currentStored)) {
-                                gateObj.addProperty("value", incoming);
-                                currentStored = incoming;
-                                if (plugin.isDebugMode()) {
-                                    Bukkit.getConsoleSender().sendMessage(AstraRS.DEBUG_PREFIX + "§dRAM_GATE §e" + key + " §7saved new value: §b\"" + incoming + "\"");
+                        JsonElement expectedOut = (currentStored == null) ? JsonNull.INSTANCE : currentStored;
+                        JsonElement currentOut = gateObj.has("current_out") ? gateObj.get("current_out") : null;
+
+                        if (!GateUtils.areJsonElementsEqual(expectedOut, currentOut)) {
+                            gateObj.add("current_out", expectedOut.deepCopy());
+                        }
+                    }
+
+                    case "RAM" -> {
+                        boolean reset = ctx.pLeft();
+                        boolean power = ctx.pRight();
+
+                        JsonElement currentStored = gateObj.has("value") ? gateObj.get("value") : null;
+                        if (currentStored != null && currentStored.isJsonNull()) currentStored = null;
+                        boolean previousState = ctx.currentState();
+
+                        if (reset || !power) {
+                            if (currentStored != null || previousState) {
+                                GateUtils.updateOutput(plugin, key, ctx.dirs().targetBlock(), false);
+
+                                if (plugin.isDebugEnabled()) {
+                                    Bukkit.getConsoleSender().sendMessage(AstraRS.DEBUG_PREFIX + "§dRAM §e" + key + " §cRESET BY side signal!");
+                                }
+                                currentStored = null;
+                                gateObj.add("value", JsonNull.INSTANCE);
+                            }
+                        } else {
+                            JsonElement incoming = GateUtils.getDataFrom(ctx.dirs().backBlock(), plugin);
+                            if (incoming != null && !incoming.isJsonNull()) {
+                                if (!GateUtils.areJsonElementsEqual(incoming, currentStored)) {
+                                    currentStored = incoming.deepCopy();
+                                    gateObj.add("value", currentStored.deepCopy());
+                                    if (plugin.isDebugEnabled()) {
+                                        Bukkit.getConsoleSender().sendMessage(AstraRS.DEBUG_PREFIX + "§dRAM §e" + key + " §7saved new value: §b" + currentStored);
+                                    }
                                 }
                             }
                         }
+
+                        boolean hasState = GateUtils.isDataSignalActive(currentStored);
+                        previousState = gateObj.has("state") && gateObj.get("state").getAsBoolean();
+
+                        if (hasState != previousState) {
+                            gateObj.addProperty("state", hasState);
+                            GateUtils.updateOutput(plugin, key, ctx.dirs().targetBlock(), hasState);
+                        }
+
+                        JsonElement expectedOut = (currentStored == null) ? JsonNull.INSTANCE : currentStored;
+                        JsonElement currentOut = gateObj.has("current_out") ? gateObj.get("current_out") : null;
+
+                        if (!GateUtils.areJsonElementsEqual(expectedOut, currentOut)) {
+                            gateObj.add("current_out", expectedOut.deepCopy());
+                        }
                     }
 
-                    // 4. Logika wyjścia - Zawsze sprawdzana, gwarantuje, że KAŻDA bramka zresetuje się równo!
-                    boolean hasState = !currentStored.isEmpty();
-                    previousState = gateObj.has("state") && gateObj.get("state").getAsBoolean(); // Pobieramy stan na nowo po if(reset)
+                    case "BATTERY" -> {
+                        long charge = gateObj.has("charge") ? gateObj.get("charge").getAsLong() : 0L;
+                        long lastChargeTick = gateObj.has("last_charge_tick") ? gateObj.get("last_charge_tick").getAsLong() : 0L;
+                        long lastDecay = gateObj.has("last_decay") ? gateObj.get("last_decay").getAsLong() : 0L;
+                        long currentTime = System.currentTimeMillis();
 
-                    if (hasState != previousState) {
-                        gateObj.addProperty("state", hasState);
-                        GateUtils.updateOutput(plugin, key, ctx.dirs().targetBlock(), hasState);
-                    }
+                        long decaySeconds = gateObj.has("decay_seconds") ? gateObj.get("decay_seconds").getAsLong() : 60L;
+                        long decayInterval = decaySeconds * 1000L;
 
-                    // Synchronizacja uniwersalnego wyjścia tekstowego (To czyści current_out do spodu!)
-                    String currentOut = gateObj.has("current_out") ? gateObj.get("current_out").getAsString() : "";
-                    if (!currentStored.equals(currentOut)) {
-                        gateObj.addProperty("current_out", currentStored);
-                    }
-                }
+                        long chargeSeconds = gateObj.has("charge_seconds") ? gateObj.get("charge_seconds").getAsLong() : 10L;
+                        long chargeInterval = chargeSeconds * 1000L;
 
-                case "BATTERY" -> {
-                    // --- ODCZYT I INICJALIZACJA DANYCH ---
-                    long charge = gateObj.has("charge") ? gateObj.get("charge").getAsLong() : 0L;
-                    long lastChargeTick = gateObj.has("last_charge_tick") ? gateObj.get("last_charge_tick").getAsLong() : 0L;
-                    long lastDecay = gateObj.has("last_decay") ? gateObj.get("last_decay").getAsLong() : 0L;
-                    long currentTime = System.currentTimeMillis();
-
-                    // Czas rozładowywania i ładowania pobierany bezpośrednio w sekundach
-                    long decaySeconds = gateObj.has("decay_seconds") ? gateObj.get("decay_seconds").getAsLong() : 60L; // min 60s, max 150s
-                    long decayInterval = decaySeconds * 1000L;
-
-                    long chargeSeconds = gateObj.has("charge_seconds") ? gateObj.get("charge_seconds").getAsLong() : 10L; // min 10s, max 30s
-                    long chargeInterval = chargeSeconds * 1000L;
-
-                    // Jeśli bateria jest tworzona po raz pierwszy, ustawiamy czas decay na aktualny
-                    if (lastDecay == 0L) {
-                        gateObj.addProperty("last_decay", currentTime);
-                        lastDecay = currentTime;
-                    }
-
-                    // --- SPRAWDZENIE CZY ŁADOWARKA JEST PODPIĘTA (TYŁ) ---
-                    String vBack = GateUtils.getStringFrom(ctx.dirs().backBlock(), plugin);
-                    boolean isInputPowered = ctx.pBack() || !vBack.isEmpty();
-
-                    // --- 1. MECHANIZM AUTOMATYCZNEGO ROZŁADOWYWANIA ---
-                    if (currentTime - lastDecay >= decayInterval) {
-                        if (isInputPowered) {
+                        if (lastDecay == 0L) {
                             gateObj.addProperty("last_decay", currentTime);
-                            if (plugin.isDebugMode()) {
-                                Bukkit.getConsoleSender().sendMessage(
-                                        AstraRS.DEBUG_PREFIX + "§eBATTERY §7at §e" + key + " §bEnergy drop blocked - charging in progress."
-                                );
-                            }
-                        } else if (charge > 0L) {
-                            charge = Math.max(0L, charge - 1L);
-                            gateObj.addProperty("charge", charge);
-                            gateObj.addProperty("last_decay", currentTime);
+                            lastDecay = currentTime;
+                        }
 
-                            if (plugin.isDebugMode()) {
-                                Bukkit.getConsoleSender().sendMessage(
-                                        AstraRS.DEBUG_PREFIX + "§eBATTERY §7at §e" + key + " §cLost 1% energy (No power). Level: §b" + charge + "%"
-                                );
+                        JsonElement vBack = GateUtils.getDataFrom(ctx.dirs().backBlock(), plugin);
+                        boolean isInputPowered = ctx.pBack() || GateUtils.isDataSignalActive(vBack);
+
+                        if (currentTime - lastDecay >= decayInterval) {
+                            if (isInputPowered) {
+                                gateObj.addProperty("last_decay", currentTime);
+                            } else if (charge > 0L) {
+                                charge = Math.max(0L, charge - 1L);
+                                gateObj.addProperty("charge", charge);
+                                gateObj.addProperty("last_decay", currentTime);
+                            } else {
+                                gateObj.addProperty("last_decay", lastDecay + decayInterval);
                             }
-                        } else {
-                            gateObj.addProperty("last_decay", lastDecay + decayInterval);
+                        }
+
+                        if (isInputPowered && (currentTime - lastChargeTick >= chargeInterval)) {
+                            if (charge < 100L) {
+                                charge = Math.min(100L, charge + 1L);
+                                gateObj.addProperty("charge", charge);
+                                gateObj.addProperty("last_charge_tick", currentTime);
+                            }
+                        }
+
+                        boolean hasPower = charge > 0L;
+                        boolean previousState = ctx.currentState();
+
+                        if (hasPower != previousState) {
+                            gateObj.addProperty("state", hasPower);
+                            GateUtils.updateOutput(plugin, key, ctx.dirs().targetBlock(), hasPower);
+                        }
+
+                        String chargeString = charge + "%";
+                        JsonElement currentOut = gateObj.has("current_out") ? gateObj.get("current_out") : null;
+                        if (currentOut == null || !currentOut.isJsonPrimitive() || !currentOut.getAsString().equals(chargeString)) {
+                            gateObj.addProperty("current_out", chargeString);
                         }
                     }
 
-                    // --- 2. MECHANIZM STAŁEGO ŁADOWANIA ---
-                    if (isInputPowered && (currentTime - lastChargeTick >= chargeInterval)) {
-                        if (charge < 100L) {
-                            charge = Math.min(100L, charge + 1L);
-                            gateObj.addProperty("charge", charge);
-                            gateObj.addProperty("last_charge_tick", currentTime);
+                    case "DATA_DETECTOR" -> {
+                        JsonElement rawData = GateUtils.getDataFrom(ctx.dirs().backBlock(), plugin);
+                        boolean hasData = (rawData != null && !rawData.isJsonNull());
 
-                            if (plugin.isDebugMode()) {
+                        JsonElement currentOut = gateObj.has("current_out") ? gateObj.get("current_out") : null;
+                        boolean lastHasData = currentOut != null && currentOut.isJsonPrimitive() && currentOut.getAsBoolean();
+
+                        if (hasData != lastHasData) {
+                            if (plugin.isDebugEnabled()) {
                                 Bukkit.getConsoleSender().sendMessage(
-                                        AstraRS.DEBUG_PREFIX + "§eBATTERY §7at §e" + key + " §aGrid charging... Level: §b" + charge + "%"
+                                        AstraRS.DEBUG_PREFIX + "§bDATA_DETECTOR §7at §e" + key + " §7-> Detected: " + (hasData ? "§aYES" : "§cNO")
                                 );
                             }
+
+                            gateObj.addProperty("current_out", hasData);
+                            gateObj.addProperty("state", hasData);
+                            GateUtils.updateOutput(plugin, key, ctx.dirs().targetBlock(), hasData);
                         }
-                    }
-
-                    // --- 3. LOGIKA WYJŚCIA ---
-                    boolean hasPower = charge > 0L;
-                    boolean previousState = ctx.currentState();
-
-                    if (hasPower != previousState) {
-                        gateObj.addProperty("state", hasPower);
-                        GateUtils.updateOutput(plugin, key, ctx.dirs().targetBlock(), hasPower);
-
-                        if (plugin.isDebugMode()) {
-                            String powerStatus = hasPower ? "§aENABLED" : "§cDISABLED (0%)";
-                            Bukkit.getConsoleSender().sendMessage(
-                                    AstraRS.DEBUG_PREFIX + "§eBATTERY §7at §e" + key + " §aGrid charging... Level: §b" + charge + "% §7(" + powerStatus + "§7)"
-                            );
-                        }
-                    }
-
-                    String chargeString = charge + "%";
-                    String currentOut = gateObj.has("current_out") ? gateObj.get("current_out").getAsString() : "";
-                    if (!chargeString.equals(currentOut)) {
-                        gateObj.addProperty("current_out", chargeString);
                     }
                 }
-
-                case "DATA_DETECTOR" -> {
-                    String rawData = GateUtils.getStringFrom(ctx.dirs().backBlock(), plugin);
-
-                    // Bramka wykrywa sygnał jeśli String nie jest pusty i nie jest reprezentacją MIN_VALUE
-                    boolean hasData = !rawData.isEmpty() && !rawData.equals(String.valueOf(Long.MIN_VALUE));
-
-                    // Jeśli jest sygnał -> wysyłamy 1, w przeciwnym razie MIN_VALUE (brak sygnału w sieci danych)
-                    String currentResStr = hasData ? "1" : String.valueOf(Long.MIN_VALUE);
-                    String lastOutStr = gateObj.has("current_out") ? gateObj.get("current_out").getAsString() : "";
-
-                    if (!currentResStr.equals(lastOutStr)) {
-                        if (plugin.isDebugMode()) {
-                            Bukkit.getConsoleSender().sendMessage(
-                                    AstraRS.DEBUG_PREFIX + "§bDATA_DETECTOR §7at §e" + key + " §7-> Detected: " + (hasData ? "§aYES (§f" + rawData + "§a)" : "§cNO")
-                            );
-                        }
-
-                        gateObj.addProperty("current_out", currentResStr);
-                        gateObj.addProperty("state", hasData);
-
-                        GateUtils.updateOutput(plugin, key, ctx.dirs().targetBlock(), hasData);
-                    }
-                }
-            }
+            });
         }
     }
 }

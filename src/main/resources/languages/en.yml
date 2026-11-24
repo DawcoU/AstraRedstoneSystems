@@ -14,12 +14,12 @@ messages:
   general:
     only-players: "&cThis command is not available from console!"
     no-permission: "&cYou do not have permission!"
-    reload-success: "&aConfiguration reloaded successfully!"
+    reload-success: "&aPlugin reloaded successfully!"
 
 
-  # --- Main Gate Command /bramka ---
+  # --- Main Gate Command /gate ---
   gate-cmd:
-    usage: "&cUsage: &6/bramka <Category> <Type> <Parameter>"
+    usage: "&cUsage: &6/gate <Category> <Type> <Parameter>"
     need-channel: "&cYou must specify a channel! <channel1,channel2...>"
     provide-limit: "&cPlease provide a limit!"
     provide-value: "&cPlease provide a value!"
@@ -109,3 +109,18 @@ messages:
     load-success: "&aSchematic &e%name% &7(%count% gates) &aloaded to clipboard! Run paste command to place it in world"
     deleted: "&aSuccessfully deleted schematic &e%name%.json &cfrom server files"
     delete-error: "&cAn error occurred while deleting file &e%name%.json&c!"
+
+
+  # --- Update System ---
+  update:
+    in-progress: "&cChecking for updates is already in progress..."
+    api-error: "&cFailed to connect to the Modrinth API"
+    no-versions: "&cNo published versions were found"
+    up-to-date: "&aAstraRS is already up to date"
+    local-newer: "&eThe installed version is newer than the latest version published on Modrinth. Update skipped"
+    no-files: "&cNo downloadable file was found for the latest version"
+    directory-error: "&cFailed to create the update directory"
+    download-error: "&cFailed to download the update"
+    downloaded: "&aAstraRS update downloaded successfully"
+    restart-required: "&eRestart the server to apply the update"
+    failed: "&cAn error occurred while checking for or downloading the update"

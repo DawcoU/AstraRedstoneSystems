@@ -10,11 +10,9 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.jetbrains.annotations.NotNull;
 import pl.dawcou.astrars.AstraRS;
+import pl.dawcou.astrars.system.SoundManager;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 public class GateCommand implements CommandExecutor, TabCompleter {
 
@@ -31,10 +29,12 @@ public class GateCommand implements CommandExecutor, TabCompleter {
         if (label.equalsIgnoreCase("bramka") || label.equalsIgnoreCase("gate")) {
             if (!player.hasPermission("astrars.gates")) {
                 player.sendMessage(plugin.getLanguageManager().getWithPrefix("general.no-permission"));
+                plugin.getSoundManager().playSound(player, SoundManager.SoundType.FAIL);
                 return true;
             }
             if (args.length < 2) {
                 player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.usage"));
+                plugin.getSoundManager().playSound(player, SoundManager.SoundType.FAIL);
                 return true;
             }
 
@@ -45,6 +45,7 @@ public class GateCommand implements CommandExecutor, TabCompleter {
             String permission = "astrars.gates." + category;
             if (!player.hasPermission(permission)) {
                 player.sendMessage(plugin.getLanguageManager().getWithPrefix("general.no-permission"));
+                plugin.getSoundManager().playSound(player, SoundManager.SoundType.FAIL);
                 return true;
             }
 
@@ -66,21 +67,26 @@ public class GateCommand implements CommandExecutor, TabCompleter {
                     case "MATH", "DECIMAL_ACCUMULATOR" -> Material.BLUE_CONCRETE;
                     case "COUNTER" -> Material.LIGHT_GRAY_CONCRETE;
                     case "COMPARATOR", "DECODER" -> Material.GRAY_CONCRETE;
-                    case "RANDOM_BOOLEAN", "RANDOM_NUMBER" -> Material.CYAN_CONCRETE;
-                    case "NUMBER_GATE", "BOOLEAN_GATE" -> Material.BROWN_CONCRETE;
+                    case "RANDOM_NUMBER" -> Material.CYAN_CONCRETE;
+                    case "NUMBER_SENDER" -> Material.BROWN_CONCRETE;
+                    default -> null;
+                };
+                case "boolean" -> switch (type) {
+                    case "RANDOM_BOOLEAN" -> Material.CYAN_CONCRETE;
+                    case "BOOLEAN_SENDER" -> Material.BROWN_CONCRETE;
                     default -> null;
                 };
                 case "string" -> switch (type) {
                     case "STRING_COMPARATOR", "STRING_DECODER" -> Material.GRAY_CONCRETE;
-                    case "STRING_GATE" -> Material.BROWN_CONCRETE;
+                    case "STRING_SENDER" -> Material.BROWN_CONCRETE;
                     default -> null;
                 };
                 case "data" -> switch (type) {
                     case "CABLE_DATA" -> Material.BLACK_CONCRETE;
                     case "DISPLAY" -> Material.WHITE_CONCRETE;
                     case "TRANSISTOR" -> Material.RED_CONCRETE;
-                    case "DISK_GATE" -> Material.LIGHT_BLUE_CONCRETE;
-                    case "RAM_GATE" -> Material.GREEN_CONCRETE;
+                    case "DISK" -> Material.LIGHT_BLUE_CONCRETE;
+                    case "RAM" -> Material.GREEN_CONCRETE;
                     case "BATTERY" -> Material.ORANGE_CONCRETE;
                     case "DATA_DETECTOR" -> Material.LIME_CONCRETE;
                     default -> null;
@@ -93,7 +99,6 @@ public class GateCommand implements CommandExecutor, TabCompleter {
                 };
                 case "time" -> switch (type) {
                     case "CLOCK" -> Material.GREEN_CONCRETE;
-                    case "CLOCK_GATE" -> Material.LIME_CONCRETE;
                     case "REPEATER", "PULSER" -> Material.YELLOW_CONCRETE;
                     default -> null;
                 };
@@ -102,6 +107,7 @@ public class GateCommand implements CommandExecutor, TabCompleter {
 
             if (mat == null) {
                 player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate.unknown-type"));
+                plugin.getSoundManager().playSound(player, SoundManager.SoundType.FAIL);
                 return true;
             }
 
@@ -133,97 +139,99 @@ public class GateCommand implements CommandExecutor, TabCompleter {
             if (type.equals("SENDER") || type.equals("RECEIVER")) {
                 if (args.length < 3) {
                     player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.need-channel"));
+                    plugin.getSoundManager().playSound(player, SoundManager.SoundType.FAIL);
                     return true;
                 }
                 lore.add("§7Channel: §f" + args[2].replace(" ", ""));
 
-            } else if (type.equals("NUMBER_GATE") || type.equals("DECODER")) {
+            } else if (type.equals("NUMBER_SENDER") || type.equals("DECODER")) {
                 if (args.length < 3) {
                     player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.provide-value"));
+                    plugin.getSoundManager().playSound(player, SoundManager.SoundType.FAIL);
                     return true;
                 }
 
-                if (!args[2].matches("-?\\d+")) {
+                try {
+                    double value = Double.parseDouble(args[2]);
+
+                    if (!Double.isFinite(value)) {
+                        throw new NumberFormatException();
+                    }
+                } catch (NumberFormatException e) {
                     player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.not-a-number"));
+                    plugin.getSoundManager().playSound(player, SoundManager.SoundType.FAIL);
                     return true;
                 }
 
-                lore.add("§7Value: §f" + args[2]);
+                double value = Double.parseDouble(args[2]);
+                lore.add("§7Value: §f" + value);
 
             } else if (type.equals("RANDOM_NUMBER")) {
                 if (args.length < 3) {
-                    player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.provide-range"));
+                    player.sendMessage(plugin.getLanguageManager()
+                            .getWithPrefix("gate-cmd.provide-range"));
+                    plugin.getSoundManager().playSound(player, SoundManager.SoundType.FAIL);
                     return true;
                 }
 
-                String val = args[2];
+                java.util.regex.Matcher matcher = java.util.regex.Pattern.compile(
+                        "^\\s*(-?\\d+(?:\\.\\d+)?)-(-?\\d+(?:\\.\\d+)?)\\s*$"
+                ).matcher(args[2]);
 
-                if (val.contains("-")) {
-                    String[] parts = val.split("-");
+                if (!matcher.matches()) {
+                    player.sendMessage(plugin.getLanguageManager()
+                            .getWithPrefix("gate-cmd.wrong-format"));
+                    plugin.getSoundManager().playSound(player, SoundManager.SoundType.FAIL);
+                    return true;
+                }
 
-                    if (parts.length == 2) {
-                        try {
-                            int min = Integer.parseInt(parts[0]);
-                            int max = Integer.parseInt(parts[1]);
+                try {
+                    double min = Double.parseDouble(matcher.group(1));
+                    double max = Double.parseDouble(matcher.group(2));
 
-                            // BLOKADA UJEMNYCH I BŁĘDNYCH ZAKRESÓW
-                            if (min < 0 || max < 0) {
-                                player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.negative-number"));
-                                return true;
-                            }
+                    if (!Double.isFinite(min) || !Double.isFinite(max)) {
+                        throw new NumberFormatException();
+                    }
 
-                            if (min > max) {
-                                player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.min-greater-than-max"));
-                                return true;
-                            }
-
-                            lore.add("§7min: §f" + min);
-                            lore.add("§7max: §f" + max);
-
-                        } catch (NumberFormatException e) {
-                            player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.not-a-number"));
-                            return true;
-                        }
-                    } else {
-                        player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.wrong-format"));
+                    if (min > max) {
+                        player.sendMessage(plugin.getLanguageManager()
+                                .getWithPrefix("gate-cmd.min-greater-than-max"));
+                        plugin.getSoundManager().playSound(player, SoundManager.SoundType.FAIL);
                         return true;
                     }
-                } else {
+
+                    lore.add("§7min: §f" + min);
+                    lore.add("§7max: §f" + max);
+
+                } catch (NumberFormatException e) {
+                    player.sendMessage(plugin.getLanguageManager()
+                            .getWithPrefix("gate-cmd.not-a-number"));
+                    plugin.getSoundManager().playSound(player, SoundManager.SoundType.FAIL);
                     return true;
                 }
 
             } else if (type.equals("MATH")) {
                 if (args.length < 3) {
                     player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.provide-mode"));
+                    plugin.getSoundManager().playSound(player, SoundManager.SoundType.FAIL);
                     return true;
                 }
 
                 String modeName;
-                switch (args[2]) {
-                    case "+":
-                    case "add":
-                        modeName = "Add";
-                        break;
-                    case "-":
-                    case "sub":
-                        modeName = "Subtract";
-                        break;
-                    case "*":
-                    case "x":
-                    case "mul":
-                        modeName = "Multiply";
-                        break;
-                    case "/":
-                    case "div":
-                        modeName = "Divide";
-                        break;
-                    case "^":
-                    case "pow":
-                        modeName = "Power";
-                        break;
-                    default:
-                        modeName = "Add";
-                        break;
+                switch (args[2].toUpperCase(Locale.ROOT)) {
+                    case "SUB", "-" -> modeName = "SUB";
+                    case "MUL", "*", "X" -> modeName = "MUL";
+                    case "DIV", "/" -> modeName = "DIV";
+                    case "POW", "^" -> modeName = "POW";
+                    case "MOD", "%" -> modeName = "MOD";
+                    case "MIN" -> modeName = "MIN";
+                    case "MAX" -> modeName = "MAX";
+                    case "SQRT" -> modeName = "SQRT";
+                    case "ROOT", "NTH_ROOT" -> modeName = "ROOT";
+                    case "AVG" -> modeName = "AVG";
+                    case "ABS" -> modeName = "ABS";
+                    case "HYPOT" -> modeName = "HYPOT";
+                    default -> modeName = "ADD";
                 }
 
                 lore.add("§7Mode: §f" + modeName);
@@ -231,6 +239,7 @@ public class GateCommand implements CommandExecutor, TabCompleter {
             } else if (type.equals("COMPARATOR")) {
                 if (args.length < 3) {
                     player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.provide-sign"));
+                    plugin.getSoundManager().playSound(player, SoundManager.SoundType.FAIL);
                     return true;
                 }
 
@@ -238,6 +247,7 @@ public class GateCommand implements CommandExecutor, TabCompleter {
 
                 if (!sign.matches(">|<|==|!=|>=|<=")) {
                     player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.invalid-sign"));
+                    plugin.getSoundManager().playSound(player, SoundManager.SoundType.FAIL);
                     return true;
                 }
 
@@ -246,11 +256,13 @@ public class GateCommand implements CommandExecutor, TabCompleter {
             } else if (type.equals("COUNTER")) {
                 if (args.length < 3) {
                     player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.provide-limit"));
+                    plugin.getSoundManager().playSound(player, SoundManager.SoundType.FAIL);
                     return true;
                 }
 
                 if (!args[2].matches("-?\\d+")) {
                     player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.not-a-number"));
+                    plugin.getSoundManager().playSound(player, SoundManager.SoundType.FAIL);
                     return true;
                 }
 
@@ -258,6 +270,7 @@ public class GateCommand implements CommandExecutor, TabCompleter {
 
                 if (val < 1 || val > 100) {
                     player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.limit-range"));
+                    plugin.getSoundManager().playSound(player, SoundManager.SoundType.FAIL);
                     return true;
                 }
 
@@ -266,11 +279,13 @@ public class GateCommand implements CommandExecutor, TabCompleter {
             } else if (type.equals("SENSOR")) {
                 if (args.length < 3) {
                     player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.provide-range"));
+                    plugin.getSoundManager().playSound(player, SoundManager.SoundType.FAIL);
                     return true;
                 }
 
                 if (!args[2].matches("-?\\d+")) {
                     player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.not-a-number"));
+                    plugin.getSoundManager().playSound(player, SoundManager.SoundType.FAIL);
                     return true;
                 }
 
@@ -278,17 +293,19 @@ public class GateCommand implements CommandExecutor, TabCompleter {
 
                 if (val < 1 || val > 15) {
                     player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.range-bounds"));
+                    plugin.getSoundManager().playSound(player, SoundManager.SoundType.FAIL);
                     return true;
                 }
 
                 lore.add("§7Range: §f" + args[2]);
 
-            } else if (type.matches("CLOCK|CLOCK_GATE|REPEATER")) {
+            } else if (type.matches("CLOCK|REPEATER")) {
                 boolean isClock = type.contains("CLOCK");
 
                 if (args.length < 3) {
                     String msgKey = isClock ? "gate-cmd.provide-frequency" : "gate-cmd.provide-delay";
                     player.sendMessage(plugin.getLanguageManager().getWithPrefix(msgKey));
+                    plugin.getSoundManager().playSound(player, SoundManager.SoundType.FAIL);
                     return true;
                 }
 
@@ -296,6 +313,7 @@ public class GateCommand implements CommandExecutor, TabCompleter {
 
                 if (!input.endsWith("t") && !input.endsWith("s")) {
                     player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.provide-unit"));
+                    plugin.getSoundManager().playSound(player, SoundManager.SoundType.FAIL);
                     return true;
                 }
 
@@ -303,6 +321,7 @@ public class GateCommand implements CommandExecutor, TabCompleter {
 
                 if (!numStr.matches("-?\\d+")) {
                     player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.invalid-time"));
+                    plugin.getSoundManager().playSound(player, SoundManager.SoundType.FAIL);
                     return true;
                 }
 
@@ -313,21 +332,24 @@ public class GateCommand implements CommandExecutor, TabCompleter {
                     if (val < 1 || val > 200) {
                         String msgKey = isClock ? "gate-cmd.clock-ticks-range" : "gate-cmd.repeater-ticks-range";
                         player.sendMessage(plugin.getLanguageManager().getWithPrefix(msgKey));
+                        plugin.getSoundManager().playSound(player, SoundManager.SoundType.FAIL);
                         return true;
                     }
                 } else if (input.endsWith("s")) {
                     if (val < 1 || val > 10) {
                         String msgKey = isClock ? "gate-cmd.clock-seconds-range" : "gate-cmd.repeater-seconds-range";
                         player.sendMessage(plugin.getLanguageManager().getWithPrefix(msgKey));
+                        plugin.getSoundManager().playSound(player, SoundManager.SoundType.FAIL);
                         return true;
                     }
                 }
 
                 lore.add("§7Time: §f" + input);
 
-            } else if (type.equals("STRING_GATE") || type.equals("STRING_DECODER")) {
+            } else if (type.equals("STRING_SENDER") || type.equals("STRING_DECODER")) {
                 if (args.length < 3) {
                     player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.provide-text"));
+                    plugin.getSoundManager().playSound(player, SoundManager.SoundType.FAIL);
                     return true;
                 }
 
@@ -343,6 +365,7 @@ public class GateCommand implements CommandExecutor, TabCompleter {
             } else if (type.equals("STRING_COMPARATOR")) {
                 if (args.length < 3) {
                     player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.provide-string-mode"));
+                    plugin.getSoundManager().playSound(player, SoundManager.SoundType.FAIL);
                     return true;
                 }
 
@@ -350,6 +373,7 @@ public class GateCommand implements CommandExecutor, TabCompleter {
 
                 if (!mode.matches("==|EQUALS|EQUALS_IGNORE_CASE|=I|CONTAINS|STARTS_WITH|ENDS_WITH|EMPTY")) {
                     player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate-cmd.invalid-string-sign"));
+                    plugin.getSoundManager().playSound(player, SoundManager.SoundType.FAIL);
                     return true;
                 }
 
@@ -371,6 +395,7 @@ public class GateCommand implements CommandExecutor, TabCompleter {
 
             player.sendMessage(plugin.getLanguageManager().getWithPrefix("gate.received")
                     .replace("%type%", type));
+            plugin.getSoundManager().playSound(player, SoundManager.SoundType.SUCCESS);
 
             return true;
         }
@@ -380,39 +405,64 @@ public class GateCommand implements CommandExecutor, TabCompleter {
     @Override
     public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, @NotNull String[] args) {
         List<String> hints = new ArrayList<>();
-        if (command.getName().equalsIgnoreCase("bramka")) {
-            if (args.length == 1) {
-                Arrays.asList("logic", "memory", "number", "string", "data", "space", "time").forEach(c -> {
-                    if (c.startsWith(args[0].toLowerCase())) hints.add(c);
-                });
-            } else if (args.length == 2) {
-                List<String> types = switch (args[0].toLowerCase()) {
-                    case "logic" ->
-                            Arrays.asList("NOT", "AND", "OR", "NOR", "NAND", "XOR", "XNOR", "NIMPLY", "IMPLY", "BUFFER", "MUX");
-                    case "memory" -> Arrays.asList("LATCH", "TFF", "MEMORY_CELL");
-                    case "number" ->
-                            Arrays.asList("COUNTER", "RANDOM_BOOLEAN", "RANDOM_NUMBER", "NUMBER_GATE", "BOOLEAN_GATE", "MATH", "DECIMAL_ACCUMULATOR", "COMPARATOR", "DECODER");
-                    case "string" ->
-                            Arrays.asList("STRING_GATE", "STRING_COMPARATOR", "STRING_DECODER");
-                    case "data" ->
-                            Arrays.asList("CABLE_DATA", "DISPLAY", "TRANSISTOR", "DISK_GATE", "RAM_GATE", "BATTERY", "DATA_DETECTOR");
-                    case "space" -> Arrays.asList("SENDER", "RECEIVER", "SENSOR");
-                    case "time" -> Arrays.asList("CLOCK", "CLOCK_GATE", "REPEATER", "PULSER");
-                    default -> Collections.emptyList();
-                };
-                types.forEach(t -> {
-                    if (t.startsWith(args[1].toUpperCase())) hints.add(t);
-                });
-            } else if (args.length == 3) {
-                String type = args[1].toUpperCase();
-                if (type.matches("CLOCK|CLOCK_GATE|REPEATER")) hints.addAll(Arrays.asList("10t", "1s"));
-                else if (type.equals("MATH")) hints.addAll(Arrays.asList("+", "-", "x", "/", "^"));
-                else if (type.equals("COMPARATOR")) hints.addAll(Arrays.asList(">", "<", "==", "!=", ">=", "<="));
-                else if (type.equals("STRING_COMPARATOR")) hints.addAll(Arrays.asList("EQUALS", "EQUALS_IGNORE_CASE", "CONTAINS", "STARTS_WITH", "ENDS_WITH", "EMPTY"));
-                else if (type.equals("SENSOR")) hints.add("5");
-                else if (type.equals("COUNTER")) hints.add("10");
-                else if (type.equals("NUMBER_GATE")) hints.add("1");
-                else if (type.equals("RANDOM_NUMBER")) hints.addAll(Arrays.asList("0-5", "0-10"));
+        if (sender instanceof Player player) {
+            if (command.getName().equalsIgnoreCase("bramka") || command.getName().equalsIgnoreCase("gate")) {
+                if (!player.hasPermission("astrars.gates")) {
+                    return hints; // Zwykły gracz bez uprawnień do bramek nie widzi podpowiedzi
+                }
+
+                if (args.length == 1) {
+                    Arrays.asList("logic", "memory", "number", "boolean", "string", "data", "space", "time").forEach(c -> {
+                        if (c.startsWith(args[0].toLowerCase()) && player.hasPermission("astrars.gates." + c.toLowerCase())) {
+                            hints.add(c);
+                        }
+                    });
+                } else if (args.length == 2) {
+                    String category = args[0].toLowerCase();
+                    if (!player.hasPermission("astrars.gates." + category)) {
+                        return hints;
+                    }
+
+                    List<String> types = switch (category) {
+                        case "logic" ->
+                                Arrays.asList("NOT", "AND", "OR", "NOR", "NAND", "XOR", "XNOR", "NIMPLY", "IMPLY", "BUFFER", "MUX");
+                        case "memory" -> Arrays.asList("LATCH", "TFF", "MEMORY_CELL");
+                        case "number" ->
+                                Arrays.asList("COUNTER", "RANDOM_NUMBER", "NUMBER_SENDER", "MATH", "DECIMAL_ACCUMULATOR", "COMPARATOR", "DECODER");
+                        case "boolean" ->
+                                Arrays.asList("RANDOM_BOOLEAN", "BOOLEAN_SENDER");
+                        case "string" ->
+                                Arrays.asList("STRING_SENDER", "STRING_COMPARATOR", "STRING_DECODER");
+                        case "data" ->
+                                Arrays.asList("CABLE_DATA", "DISPLAY", "TRANSISTOR", "DISK", "RAM", "BATTERY", "DATA_DETECTOR");
+                        case "space" -> Arrays.asList("SENDER", "RECEIVER", "SENSOR");
+                        case "time" -> Arrays.asList("CLOCK", "REPEATER", "PULSER");
+                        default -> Collections.emptyList();
+                    };
+                    types.forEach(t -> {
+                        if (t.startsWith(args[1].toUpperCase())) hints.add(t);
+                    });
+                } else if (args.length == 3) {
+                    String category = args[0].toLowerCase();
+                    if (!player.hasPermission("astrars.gates." + category)) {
+                        return hints;
+                    }
+
+                    String type = args[1].toUpperCase();
+                    if (type.matches("CLOCK|REPEATER")) hints.addAll(Arrays.asList("10t", "1s"));
+                    else if (type.equals("MATH")) {
+                        hints.addAll(Arrays.asList(
+                                "ADD", "SUB", "-", "MUL", "*", "DIV", "/", "POW", "^",
+                                "MOD", "%", "MIN", "MAX", "SQRT", "ROOT", "AVG", "ABS", "HYPOT"
+                        ));
+                    }
+                    else if (type.equals("COMPARATOR")) hints.addAll(Arrays.asList(">", "<", "==", "!=", ">=", "<="));
+                    else if (type.equals("STRING_COMPARATOR")) hints.addAll(Arrays.asList("EQUALS", "EQUALS_IGNORE_CASE", "CONTAINS", "STARTS_WITH", "ENDS_WITH", "EMPTY"));
+                    else if (type.equals("SENSOR")) hints.add("5");
+                    else if (type.equals("COUNTER")) hints.add("10");
+                    else if (type.equals("NUMBER_SENDER")) hints.add("1");
+                    else if (type.equals("RANDOM_NUMBER")) hints.addAll(Arrays.asList("0-5", "0-10"));
+                }
             }
         }
         return hints;

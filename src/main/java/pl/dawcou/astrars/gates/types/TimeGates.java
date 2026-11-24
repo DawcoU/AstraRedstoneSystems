@@ -2,33 +2,44 @@ package pl.dawcou.astrars.gates.types;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-
 import pl.dawcou.astrars.AstraRS;
 import pl.dawcou.astrars.file.GateDataManager;
-import pl.dawcou.astrars.gates.data.GateContext;
 import pl.dawcou.astrars.gates.data.GateContextFactory;
 import pl.dawcou.astrars.gates.data.GateValidator;
 import pl.dawcou.astrars.gates.utils.GateUtils;
 import pl.dawcou.astrars.system.SchedulerManager;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class TimeGates {
 
     private final AstraRS plugin;
     private final GateValidator validator;
 
-    private final Map<String, SchedulerManager.Task> repeaterTasks = new HashMap<>();
+    private final Map<String, SchedulerManager.Task> repeaterTasks = new ConcurrentHashMap<>();
 
-    private static final Set<String> OUT_GATES = Set.of("CLOCK_GATE", "CLOCK", "REPEATER", "PULSER");
-    private static final Set<String> BACK_GATES = Set.of("CLOCK_GATE", "REPEATER", "PULSER");
+    private static final Set<String> HANDLED_TYPES = Set.of(
+            "CLOCK", "REPEATER", "PULSER"
+    );
+
+    private static final Set<String> OUT_GATES = Set.of(
+            "CLOCK", "REPEATER", "PULSER"
+    );
+
+    private static final Set<String> BACK_GATES = Set.of(
+            "CLOCK", "REPEATER", "PULSER"
+    );
 
     public TimeGates(AstraRS plugin, GateValidator validator) {
         this.plugin = plugin;
         this.validator = validator;
     }
+
+    // --------------------------------------------------
+    // GŁÓWNA PĘTLA
+    // --------------------------------------------------
 
     public void runTimeGates() {
         GateDataManager manager = plugin.getGateDataManager();
@@ -36,80 +47,133 @@ public class TimeGates {
         if (gatesSection == null) return;
 
         for (Map.Entry<String, JsonElement> entry : gatesSection.entrySet()) {
-            GateContext ctx = GateContextFactory.create(entry, validator);
-            if (ctx == null) continue;
+            GateContextFactory.createAndRun(entry, validator, plugin, ctx -> {
+                if (ctx == null) return;
 
-            JsonObject gateObj = ctx.json();
-            String key = ctx.key();
-            String type = ctx.type();
+                if (!HANDLED_TYPES.contains(ctx.type())) return;
 
-            if (OUT_GATES.contains(type)) {
-                GateUtils.spawnStatusParticle(ctx.gateBlock(), ctx.dirs().out(), ctx.currentState());
-            }
+                JsonObject gateObj = ctx.json();
+                String key = ctx.key();
+                String type = ctx.type();
 
-            if (BACK_GATES.contains(type)) {
-                GateUtils.spawnStatusParticle(ctx.gateBlock(), ctx.dirs().back(), ctx.pBack());
-            }
+                // Odczyt wejść
+                boolean enabled = ctx.pBack();
 
-            switch (type) {
-                case "REPEATER" -> {
-                    boolean lastIn = gateObj.has("last_in") && gateObj.get("last_in").getAsBoolean();
+                // ----------------------------------------------------
+                // CZĄSTECZKI STATUSU
+                // ----------------------------------------------------
 
-                    if (ctx.pBack() != lastIn) {
-                        gateObj.addProperty("last_in", ctx.pBack());
-
-                        if (repeaterTasks.containsKey(key)) {
-                            repeaterTasks.get(key).cancel();
-                        }
-
-                        int delay = gateObj.has("interval") ? gateObj.get("interval").getAsInt() : 20;
-                        final boolean finalPower = ctx.pBack();
-
-                        SchedulerManager.Task task = plugin.getSchedulerManager().runSyncLater(() -> {
-                            gateObj.addProperty("state", finalPower);
-                            GateUtils.updateOutput(plugin, key, ctx.dirs().targetBlock(), finalPower);
-                            repeaterTasks.remove(key);
-                        }, delay);
-
-                        repeaterTasks.put(key, task);
-                    }
+                if (OUT_GATES.contains(type)) {
+                    GateUtils.spawnStatusParticle(
+                            ctx.gateBlock(), ctx.dirs().out(), ctx.currentState()
+                    );
                 }
 
-                case "PULSER" -> {
-                    boolean lastIn = gateObj.has("lastInput") && gateObj.get("lastInput").getAsBoolean();
-                    boolean result = ctx.pBack() && !lastIn;
-
-                    gateObj.addProperty("lastInput", ctx.pBack());
-
-                    if (result != ctx.currentState()) {
-                        gateObj.addProperty("state", result);
-                        GateUtils.updateOutput(plugin, key, ctx.dirs().targetBlock(), result);
-                    }
+                if (BACK_GATES.contains(type)) {
+                    GateUtils.spawnStatusParticle(
+                            ctx.gateBlock(), ctx.dirs().back(), enabled
+                    );
                 }
 
-                case "CLOCK", "CLOCK_GATE" -> {
-                    int interval = gateObj.has("interval") ? gateObj.get("interval").getAsInt() : 20;
-                    boolean enabled = "CLOCK".equals(type) || ctx.pBack();
+                // ----------------------------------------------------
+                // LOGIKA BRAMEK CZASOWYCH
+                // ----------------------------------------------------
 
-                    if (!enabled) {
-                        if (ctx.currentState()) {
-                            GateUtils.updateOutput(plugin, key, ctx.dirs().targetBlock(), false);
-                            gateObj.addProperty("state", false);
-                        }
-                        gateObj.addProperty("next_tick", 0);
-                    } else {
-                        int nt = (gateObj.has("next_tick") ? gateObj.get("next_tick").getAsInt() : 0) + 1;
-                        if (nt >= interval) {
-                            boolean newState = !ctx.currentState();
-                            gateObj.addProperty("state", newState);
+                switch (type) {
+                    case "REPEATER" -> {
+                        boolean lastIn = gateObj.has("last_in")
+                                && gateObj.get("last_in").getAsBoolean();
 
-                            GateUtils.updateOutput(plugin, key, ctx.dirs().targetBlock(), newState);
-                            nt = 0;
+                        if (enabled != lastIn) {
+                            gateObj.addProperty("last_in", enabled);
+
+                            if (repeaterTasks.containsKey(key)) {
+                                repeaterTasks.get(key).cancel();
+                            }
+
+                            int delay = gateObj.has("interval")
+                                    ? gateObj.get("interval").getAsInt()
+                                    : 20;
+
+                            final boolean finalPower = enabled;
+
+                            SchedulerManager.Task task =
+                                    plugin.getSchedulerManager().runSyncLater(() -> {
+                                        GateUtils.syncOutput(
+                                                plugin,
+                                                gateObj,
+                                                ctx,
+                                                key,
+                                                finalPower,
+                                                false
+                                        );
+                                        repeaterTasks.remove(key);
+                                    }, delay);
+
+                            repeaterTasks.put(key, task);
                         }
-                        gateObj.addProperty("next_tick", nt);
+                    }
+
+                    case "PULSER" -> {
+                        boolean lastIn = gateObj.has("lastInput")
+                                && gateObj.get("lastInput").getAsBoolean();
+
+                        boolean result = enabled && !lastIn;
+
+                        gateObj.addProperty("lastInput", enabled);
+
+                        GateUtils.syncOutput(
+                                plugin,
+                                gateObj,
+                                ctx,
+                                key,
+                                result,
+                                false
+                        );
+                    }
+
+                    case "CLOCK" -> {
+                        int interval = gateObj.has("interval")
+                                ? gateObj.get("interval").getAsInt()
+                                : 20;
+
+                        // Zegar działa tylko wtedy, gdy z tyłu jest dostarczany sygnał (pBack)
+
+                        if (!enabled) {
+                            if (ctx.currentState()) {
+                                GateUtils.syncOutput(
+                                        plugin,
+                                        gateObj,
+                                        ctx,
+                                        key,
+                                        false,
+                                        false
+                                );
+                            }
+                            gateObj.addProperty("next_tick", 0);
+                        } else {
+                            int nt = (gateObj.has("next_tick")
+                                    ? gateObj.get("next_tick").getAsInt()
+                                    : 0) + 1;
+
+                            if (nt >= interval) {
+                                boolean newState = !ctx.currentState();
+                                GateUtils.syncOutput(
+                                        plugin,
+                                        gateObj,
+                                        ctx,
+                                        key,
+                                        newState,
+                                        false
+                                );
+                                nt = 0;
+                            }
+
+                            gateObj.addProperty("next_tick", nt);
+                        }
                     }
                 }
-            }
+            });
         }
     }
 }

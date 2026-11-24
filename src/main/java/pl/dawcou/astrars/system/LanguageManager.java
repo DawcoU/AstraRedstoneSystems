@@ -101,7 +101,7 @@ public class LanguageManager {
     }
 
     public void printMissingKeys() {
-        if (((AstraRS) plugin).isDebugMode()) return;
+        if (((AstraRS) plugin).isDebugEnabled()) return;
         if (missingKeys.isEmpty()) return;
 
         plugin.getLogger().warning("==============================");
@@ -117,7 +117,7 @@ public class LanguageManager {
             String fullPath = path.isEmpty() ? key : path + "." + key;
 
             if (section.isConfigurationSection(key)) {
-                loadMessages(section.getConfigurationSection(key), fullPath);
+                loadMessages(Objects.requireNonNull(section.getConfigurationSection(key)), fullPath);
             } else if (section.isList(key)) {
                 // Zapisujemy surową listę bez ponownego parsowania na tym etapie
                 rawLists.put(fullPath, section.getStringList(key));
@@ -134,7 +134,7 @@ public class LanguageManager {
         File langFolder = new File(plugin.getDataFolder(), "languages");
         if (!langFolder.exists()) langFolder.mkdirs();
 
-        String[] defaultLangs = {"pl.yml", "en.yml"};
+        String[] defaultLangs = {"pl.yml", "en.yml", "de.yml", "es.yml"};
         for (String langFile : defaultLangs) {
             File file = new File(langFolder, langFile);
             if (!file.exists()) {

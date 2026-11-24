@@ -1,401 +1,758 @@
 package pl.dawcou.astrars.gates.types;
 
 import com.google.gson.JsonElement;
+import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
 import org.bukkit.Bukkit;
-import org.bukkit.block.BlockFace;
 
 import pl.dawcou.astrars.AstraRS;
 import pl.dawcou.astrars.file.GateDataManager;
-import pl.dawcou.astrars.gates.data.GateContext;
 import pl.dawcou.astrars.gates.data.GateContextFactory;
 import pl.dawcou.astrars.gates.data.GateValidator;
 import pl.dawcou.astrars.gates.utils.GateUtils;
 
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ThreadLocalRandom;
 
 public class NumberGates {
+
     private final AstraRS plugin;
     private final GateValidator validator;
 
+    private static final Set<String> HANDLED_TYPES = Set.of(
+            "NUMBER_SENDER", "COUNTER", "MATH", "COMPARATOR",
+            "DECODER", "RANDOM_NUMBER", "DECIMAL_ACCUMULATOR", "DATA_LISTENER"
+    );
+
     private static final Set<String> OUT_GATES = Set.of(
-            "NUMBER_GATE", "COUNTER", "BOOLEAN_GATE", "MATH", "COMPARATOR",
-            "DECODER", "RANDOM_BOOLEAN", "RANDOM_NUMBER", "DECIMAL_ACCUMULATOR", "DATA_LISTENER"
+            "NUMBER_SENDER", "COUNTER", "MATH", "COMPARATOR",
+            "DECODER", "RANDOM_NUMBER",
+            "DECIMAL_ACCUMULATOR", "DATA_LISTENER"
     );
+
+    private static final Set<String> SIDE_GATES = Set.of(
+            "COUNTER", "MATH", "COMPARATOR", "DECIMAL_ACCUMULATOR"
+    );
+
     private static final Set<String> BACK_GATES = Set.of(
-            "NUMBER_GATE", "BOOLEAN_GATE", "DECODER", "RANDOM_BOOLEAN",
-            "RANDOM_NUMBER", "COUNTER", "DECIMAL_ACCUMULATOR", "DATA_LISTENER"
+            "NUMBER_SENDER", "DECODER", "RANDOM_NUMBER",
+            "COUNTER", "DECIMAL_ACCUMULATOR", "DATA_LISTENER"
     );
-    private static final Set<String> SIDE_GATES = Set.of("COUNTER", "MATH", "COMPARATOR", "DECIMAL_ACCUMULATOR");
 
     public NumberGates(AstraRS plugin, GateValidator validator) {
         this.plugin = plugin;
         this.validator = validator;
     }
 
+    // --------------------------------------------------
+    // GŁÓWNA PĘTLA
+    // --------------------------------------------------
+
     public void runNumberGates() {
         GateDataManager manager = plugin.getGateDataManager();
         JsonObject gatesSection = manager.getGates();
+
         if (gatesSection == null) return;
 
         for (Map.Entry<String, JsonElement> entry : gatesSection.entrySet()) {
-            GateContext ctx = GateContextFactory.create(entry, validator);
-            if (ctx == null) continue;
+            GateContextFactory.createAndRun(entry, validator, plugin, ctx -> {
+                if (ctx == null) return;
 
-            JsonObject gateObj = ctx.json();
-            String type = ctx.type();
-            String key = ctx.key();
+                if (!HANDLED_TYPES.contains(ctx.type())) return;
 
-            // --- EFEKTY WIZUALNE STATUSU ---
-            // 1. EFEKT WYJŚCIA (Wszystkie bramki logiczne oprócz kabla)
-            if (OUT_GATES.contains(type)) {
-                GateUtils.spawnStatusParticle(ctx.gateBlock(), ctx.dirs().out(), ctx.currentState());
-            }
+                JsonObject gateObj = ctx.json();
+                String type = ctx.type();
+                String key = ctx.key();
 
-            // 2. EFEKT WEJŚCIA Z TYŁU
-            if (BACK_GATES.contains(type)) {
-                if (type.equals("COUNTER") || type.equals("DECIMAL_ACCUMULATOR")) {
-                    long vBack = GateUtils.getNumberFrom(ctx.dirs().backBlock(), plugin);
-                    // Świeci jeśli idzie liczba LUB prąd
-                    GateUtils.spawnStatusParticle(ctx.gateBlock(), ctx.dirs().back(), vBack > 0 || ctx.pBack());
-                } else {
-                    GateUtils.spawnStatusParticle(ctx.gateBlock(), ctx.dirs().back(), ctx.pBack());
+                // --------------------------------------------------
+                // EFEKTY WIZUALNE STATUSU
+                // --------------------------------------------------
+
+                // Wyjście.
+                if (OUT_GATES.contains(type)) {
+                    GateUtils.spawnStatusParticle(
+                            ctx.gateBlock(),
+                            ctx.dirs().out(),
+                            ctx.currentState()
+                    );
                 }
-            }
 
-            // 3. EFEKT WEJŚĆ BOCZNYCH
-            if (SIDE_GATES.contains(type)) {
-                BlockFace faceL = ctx.dirs().left();
-                BlockFace faceR = ctx.dirs().right();
+                // Wejście z tyłu.
+                if (BACK_GATES.contains(type)) {
+                    boolean active;
 
-                // LEWO
-                long vL = GateUtils.getNumberFrom(ctx.dirs().leftBlock(), plugin);
-                if (vL == 0 || vL == Long.MIN_VALUE) vL = GateUtils.getPowerAt(ctx.dirs().leftBlock());
-                GateUtils.spawnStatusParticle(ctx.gateBlock(), faceL, vL > 0);
+                    if (type.equals("COUNTER")
+                            || type.equals("DECIMAL_ACCUMULATOR")) {
 
-                // PRAWO
-                long vR = GateUtils.getNumberFrom(ctx.dirs().rightBlock(), plugin);
-                if (vR == 0 || vR == Long.MIN_VALUE) vR = GateUtils.getPowerAt(ctx.dirs().rightBlock());
-                GateUtils.spawnStatusParticle(ctx.gateBlock(), faceR, vR > 0);
-            }
+                        Long value = GateUtils.getNumberFrom(
+                                ctx.dirs().backBlock(),
+                                plugin
+                        );
 
-            // --- LOGIKA BRAMEK ---
-            switch (type) {
-                case "NUMBER_GATE" -> {
-                    long storedValue = gateObj.has("value") ? gateObj.get("value").getAsLong() : 0L;
+                        active = value != null
+                                ? value > 0L
+                                : ctx.pBack();
 
-                    // LOGIKA: Jeśli OFF -> Long.MIN_VALUE, Jeśli ON -> storedValue
-                    long valToSend = ctx.pBack() ? storedValue : Long.MIN_VALUE;
-                    String currentResStr = String.valueOf(valToSend);
-
-                    String lastOutStr = gateObj.has("current_out") ? gateObj.get("current_out").getAsString() : String.valueOf(Long.MIN_VALUE);
-
-                    if (!currentResStr.equals(lastOutStr)) {
-                        gateObj.addProperty("current_out", currentResStr);
-                        gateObj.addProperty("state", ctx.pBack());
-                        // GateUtils musi umieć odebrać longa i przekazać go dalej
-                        GateUtils.updateOutput(plugin, key, ctx.dirs().targetBlock(), ctx.pBack());
+                    } else {
+                        active = ctx.pBack();
                     }
+
+                    GateUtils.spawnStatusParticle(
+                            ctx.gateBlock(),
+                            ctx.dirs().back(),
+                            active
+                    );
                 }
 
-                case "BOOLEAN_GATE" -> {
-                    boolean hasPower = ctx.pBack();
-                    long valueToSend = hasPower ? 1L : 0L;
+                // Wejścia boczne.
+                if (SIDE_GATES.contains(type)) {
+                    boolean leftActive;
+                    boolean rightActive;
 
-                    // 1. Przygotowujemy uniwersalny String systemowy
-                    String currentResStr = String.valueOf(valueToSend);
+                    switch (type) {
+                        case "COUNTER" -> {
+                            Long leftValue = GateUtils.getNumberFrom(
+                                    ctx.dirs().leftBlock(),
+                                    plugin
+                            );
 
-                    // 2. Pobieramy poprzednią wartość jako STRING (konsekwentnie!)
-                    String lastOutStr = gateObj.has("current_out") ? gateObj.get("current_out").getAsString() : "";
+                            Long rightValue = GateUtils.getNumberFrom(
+                                    ctx.dirs().rightBlock(),
+                                    plugin
+                            );
 
-                    // 3. Porównujemy String z Stringiem, żeby uniknąć wiecznej pętli
-                    if (!currentResStr.equals(lastOutStr)) {
+                            leftActive = leftValue != null
+                                    ? leftValue > 0L
+                                    : ctx.pLeft();
 
-                        if (plugin.isDebugMode()) {
+                            rightActive = rightValue != null
+                                    ? rightValue > 0L
+                                    : ctx.pRight();
+                        }
+
+                        case "MATH", "COMPARATOR" -> {
+                            Double leftValue = GateUtils.getDoubleFrom(
+                                    ctx.dirs().leftBlock(),
+                                    plugin
+                            );
+
+                            Double rightValue = GateUtils.getDoubleFrom(
+                                    ctx.dirs().rightBlock(),
+                                    plugin
+                            );
+
+                            // Cząsteczki świecą na zielono tylko gdy są dane cyfrowe, ignorując zwykły redstone
+                            leftActive = leftValue != null;
+                            rightActive = rightValue != null;
+                        }
+
+                        // Boki akumulatora służą do resetowania.
+                        case "DECIMAL_ACCUMULATOR" -> {
+                            leftActive = ctx.pLeft();
+                            rightActive = ctx.pRight();
+                        }
+
+                        default -> {
+                            leftActive = ctx.pLeft();
+                            rightActive = ctx.pRight();
+                        }
+                    }
+
+                    GateUtils.spawnStatusParticle(
+                            ctx.gateBlock(),
+                            ctx.dirs().left(),
+                            leftActive
+                    );
+
+                    GateUtils.spawnStatusParticle(
+                            ctx.gateBlock(),
+                            ctx.dirs().right(),
+                            rightActive
+                    );
+                }
+
+                // --------------------------------------------------
+                // LOGIKA BRAMEK
+                // --------------------------------------------------
+
+                switch (type) {
+
+                    // ==============================================
+                    // NUMBER_SENDER — źródło liczb double
+                    // ==============================================
+
+                    case "NUMBER_SENDER" -> {
+                        double storedValue = GateUtils.readDouble(
+                                gateObj,
+                                "value",
+                                0.0
+                        );
+
+                        boolean enabled = ctx.pBack();
+
+                        JsonElement result = enabled
+                                ? new JsonPrimitive(storedValue)
+                                : JsonNull.INSTANCE;
+
+                        boolean outputChanged = GateUtils.setOutputIfChanged(
+                                gateObj,
+                                result
+                        );
+
+                        GateUtils.syncOutput(
+                                plugin,
+                                gateObj,
+                                ctx,
+                                key,
+                                enabled,
+                                outputChanged
+                        );
+                    }
+
+                    // ==============================================
+                    // COUNTER — liczby całkowite long
+                    // ==============================================
+
+                    case "COUNTER" -> {
+                        Long inputBack = GateUtils.getNumberFrom(
+                                ctx.dirs().backBlock(),
+                                plugin
+                        );
+
+                        Long inputLeft = GateUtils.getNumberFrom(
+                                ctx.dirs().leftBlock(),
+                                plugin
+                        );
+
+                        boolean pB = ctx.pBack();
+                        boolean pL = ctx.pLeft();
+                        boolean pR = ctx.pRight();
+
+                        long lastDataBack = GateUtils.readLong(
+                                gateObj,
+                                "last_data_back",
+                                0L
+                        );
+
+                        long lastDataLeft = GateUtils.readLong(
+                                gateObj,
+                                "last_data_left",
+                                0L
+                        );
+
+                        boolean lastBack = GateUtils.readBoolean(
+                                gateObj,
+                                "last_back",
+                                false
+                        );
+
+                        boolean lastLeft = GateUtils.readBoolean(
+                                gateObj,
+                                "last_left",
+                                false
+                        );
+
+                        boolean lastRight = GateUtils.readBoolean(
+                                gateObj,
+                                "last_right",
+                                false
+                        );
+
+                        long count = GateUtils.readLong(
+                                gateObj,
+                                "count",
+                                0L
+                        );
+
+                        long limit = GateUtils.readLong(
+                                gateObj,
+                                "score_limit",
+                                15L
+                        );
+
+                        limit = Math.max(0L, limit);
+                        count = Math.max(0L, Math.min(count, limit));
+
+                        long previousCount = count;
+
+                        // DODAWANIE:
+                        // przyrost liczbowy albo impuls redstone.
+                        if (inputBack != null) {
+                            if (inputBack > lastDataBack) {
+                                long delta = GateUtils.positiveDifference(
+                                        inputBack,
+                                        lastDataBack
+                                );
+
+                                long remaining = limit - count;
+
+                                count = delta >= remaining
+                                        ? limit
+                                        : count + delta;
+
+                            } else if (pB && !lastBack && count < limit) {
+                                count++;
+                            }
+
+                        } else if (pB && !lastBack && count < limit) {
+                            count++;
+                        }
+
+                        // ODEJMOWANIE:
+                        // przyrost liczbowy albo impuls redstone.
+                        if (inputLeft != null) {
+                            if (inputLeft > lastDataLeft) {
+                                long delta = GateUtils.positiveDifference(
+                                        inputLeft,
+                                        lastDataLeft
+                                );
+
+                                count = delta >= count
+                                        ? 0L
+                                        : count - delta;
+
+                            } else if (pL && !lastLeft && count > 0L) {
+                                count--;
+                            }
+
+                        } else if (pL && !lastLeft && count > 0L) {
+                            count--;
+                        }
+
+                        // RESET.
+                        if (pR && !lastRight) {
+                            count = 0L;
+                        }
+
+                        boolean changed = count != previousCount;
+
+                        if (changed && plugin.isDebugEnabled()) {
                             Bukkit.getConsoleSender().sendMessage(
-                                    AstraRS.DEBUG_PREFIX + "§3BOOLEAN_GATE §7at §e" + key + " §7-> State: " + (hasPower ? "§aENABLED (1)" : "§cDISABLED (0)")
+                                    AstraRS.DEBUG_PREFIX
+                                            + "§5COUNTER §7at §e"
+                                            + key
+                                            + " §7-> New counter state: §d§l"
+                                            + count + "§7/§5" + limit
                             );
                         }
 
-                        // Zapisujemy jako String – bezpiecznie dla reszty sieci kabli danych
-                        gateObj.addProperty("current_out", currentResStr);
-                        gateObj.addProperty("state", hasPower);
+                        // Wynikiem licznika zawsze jest liczba long,
+                        // także wtedy, gdy wynosi zero.
+                        GateUtils.setLongIfChanged(gateObj, "count", count);
 
-                        GateUtils.updateOutput(plugin, key, ctx.dirs().targetBlock(), hasPower);
-                    }
-                }
+                        boolean outputChanged = GateUtils.setOutputIfChanged(
+                                gateObj,
+                                new JsonPrimitive(count)
+                        );
 
-                case "COUNTER" -> {
-                    // --- POBIERANIE DANYCH ---
-                    long dataBack = GateUtils.getNumberFrom(ctx.dirs().backBlock(), plugin);
-                    long dataLeft = GateUtils.getNumberFrom(ctx.dirs().leftBlock(), plugin);
+                        boolean finalState = count > 0L;
 
-                    // NORMALIZACJA:
-                    if (dataBack == Long.MIN_VALUE) dataBack = 0;
-                    if (dataLeft == Long.MIN_VALUE) dataLeft = 0;
+                        GateUtils.syncOutput(
+                                plugin,
+                                gateObj,
+                                ctx,
+                                key,
+                                finalState,
+                                outputChanged
+                        );
 
-                    boolean pB = ctx.pBack();
-                    boolean pL = ctx.pLeft();
-                    boolean pR = ctx.pRight();
+                        // Historia fizycznych wejść.
+                        GateUtils.setBooleanIfChanged(gateObj, "last_back", pB);
+                        GateUtils.setBooleanIfChanged(gateObj, "last_left", pL);
+                        GateUtils.setBooleanIfChanged(gateObj, "last_right", pR);
 
-                    // --- POBIERANIE POPRZEDNICH STANÓW (Z JSON) ---
-                    long lastDataBack = gateObj.has("last_data_back") ? gateObj.get("last_data_back").getAsLong() : 0L;
-                    long lastDataLeft = gateObj.has("last_data_left") ? gateObj.get("last_data_left").getAsLong() : 0L;
-                    boolean lB = gateObj.has("last_back") && gateObj.get("last_back").getAsBoolean();
-                    boolean lL = gateObj.has("last_left") && gateObj.get("last_left").getAsBoolean();
-                    boolean lR = gateObj.has("last_right") && gateObj.get("last_right").getAsBoolean();
-
-                    long count = gateObj.has("count") ? gateObj.get("count").getAsLong() : 0L;
-                    long limit = gateObj.has("score_limit") ? gateObj.get("score_limit").getAsLong() : 15L;
-                    boolean changed = false;
-
-                    // --- LOGIKA: DODAWANIE (TYŁ) ---
-                    if (dataBack > lastDataBack) {
-                        count = Math.min(limit, count + (dataBack - lastDataBack));
-                        changed = true;
-                    }
-                    else if (pB && !lB && count < limit) {
-                        count++;
-                        changed = true;
-                    }
-
-                    // --- LOGIKA: ODEJMOWANIE (LEWO) ---
-                    if (dataLeft > lastDataLeft) {
-                        count = Math.max(0, count - (dataLeft - lastDataLeft));
-                        changed = true;
-                    }
-                    else if (pL && !lL && count > 0) {
-                        count--;
-                        changed = true;
-                    }
-
-                    // --- LOGIKA: RESET (PRAWO) ---
-                    if (pR && !lR) {
-                        count = 0;
-                        changed = true;
-                    }
-
-                    // --- ZAPIS I AKTUALIZACJA ---
-                    if (changed) {
-                        gateObj.addProperty("count", count);
-
-                        boolean finalState = (count > 0);
-                        boolean previousState = ctx.currentState();
-
-                        if (finalState != previousState) {
-                            gateObj.addProperty("state", finalState);
-                            GateUtils.updateOutput(plugin, key, ctx.dirs().targetBlock(), finalState);
-                        }
-
-                        if (plugin.isDebugMode()) {
-                            Bukkit.getConsoleSender().sendMessage(
-                                    AstraRS.DEBUG_PREFIX + "§5COUNTER §7at §e" + key + " §7-> New counter state: §d§l" + count + "§7/§5" + limit
+                        // Historia danych aktualizuje się tylko wtedy,
+                        // gdy wejście faktycznie dostarcza liczbę.
+                        if (inputBack != null) {
+                            GateUtils.setLongIfChanged(
+                                    gateObj,
+                                    "last_data_back",
+                                    inputBack
                             );
                         }
 
-                        String countStr = String.valueOf(count);
-                        gateObj.addProperty("current_out", countStr);
-                        gateObj.addProperty("last_data_back", dataBack);
-                        gateObj.addProperty("last_data_left", dataLeft);
-                        gateObj.addProperty("last_back", pB);
-                        gateObj.addProperty("last_left", pL);
-                        gateObj.addProperty("last_right", pR);
-                    }
-                }
-
-                case "MATH" -> {
-                    // 1. POBIERANIE DANYCH
-                    long vL_raw = GateUtils.getNumberFrom(ctx.dirs().leftBlock(), plugin);
-                    long vR_raw = GateUtils.getNumberFrom(ctx.dirs().rightBlock(), plugin);
-
-                    // 2. NORMALIZACJA - Sprawdzamy Long.MIN_VALUE
-                    long vL = (vL_raw == Long.MIN_VALUE) ? 0L : vL_raw;
-                    long vR = (vR_raw == Long.MIN_VALUE) ? 0L : vR_raw;
-
-                    String m = gateObj.has("mode") ? gateObj.get("mode").getAsString().toUpperCase() : "ADD";
-
-                    // 3. OBLICZENIA - Czyste operacje na longach
-                    long result = switch (m) {
-                        case "SUB", "-" -> vL - vR;
-                        case "MUL", "*" -> vL * vR;
-                        case "DIV", "/" -> (vR != 0) ? vL / vR : 0L;
-                        case "POW", "^" -> (long) Math.pow(vL, vR);
-                        default -> vL + vR;
-                    };
-
-                    // 4. ZAPIS I AKTUALIZACJA
-                    String lastRes = gateObj.has("current_out") ? gateObj.get("current_out").getAsString() : "";
-                    String currentResStr = String.valueOf(result);
-
-                    if (!currentResStr.equals(lastRes)) {
-                        if (plugin.isDebugMode()) {
-                            Bukkit.getConsoleSender().sendMessage(
-                                    AstraRS.DEBUG_PREFIX + "§d§lMATH §e" + key + " §7result: §a§l" + result
+                        if (inputLeft != null) {
+                            GateUtils.setLongIfChanged(
+                                    gateObj,
+                                    "last_data_left",
+                                    inputLeft
                             );
                         }
-                        gateObj.addProperty("current_out", currentResStr);
-
-                        boolean isActive = (result != 0L);
-                        gateObj.addProperty("state", isActive);
-                        GateUtils.updateOutput(plugin, key, ctx.dirs().targetBlock(), isActive);
-                    }
-                }
-
-                case "DECIMAL_ACCUMULATOR" -> {
-                    boolean resetL = ctx.pLeft();
-                    boolean resetR = ctx.pRight();
-
-                    // Pobieramy wartość
-                    long inputVal = GateUtils.getNumberFrom(ctx.dirs().backBlock(), plugin);
-
-                    // 1. Reset
-                    if (resetL || resetR) {
-                        gateObj.addProperty("current_out", "0");
-                        gateObj.addProperty("last_input", Long.MIN_VALUE);
-                        gateObj.addProperty("state", true);
-                        GateUtils.updateOutput(plugin, key, ctx.dirs().targetBlock(), true);
                     }
 
-                    // 2. Logika APPEND
-                    else {
-                        // Pobieramy ostatni stan (domyślnie brak sygnału)
-                        long lastInput = gateObj.has("last_input") ? gateObj.get("last_input").getAsLong() : Long.MIN_VALUE;
+                    // ==============================================
+                    // MATH — działania na liczbach double
+                    // ==============================================
 
-                        if (inputVal >= 0 && inputVal <= 9) {
-                            if (lastInput == Long.MIN_VALUE) {
+                    case "MATH" -> {
+                        Double inputL = GateUtils.getDoubleFrom(
+                                ctx.dirs().leftBlock(),
+                                plugin
+                        );
 
-                                String lastRes = gateObj.has("current_out") ? gateObj.get("current_out").getAsString() : "0";
-                                long currentVal;
+                        Double inputR = GateUtils.getDoubleFrom(
+                                ctx.dirs().rightBlock(),
+                                plugin
+                        );
+
+                        JsonElement resultElement = JsonNull.INSTANCE;
+
+                        if (inputL != null && inputR != null) {
+                            double vL = inputL;
+                            double vR = inputR;
+
+                            String mode = GateUtils.readString(
+                                    gateObj,
+                                    "mode",
+                                    "ADD"
+                            ).toUpperCase(Locale.ROOT);
+
+                            double result = switch (mode) {
+                                case "SUB" -> vL - vR;
+                                case "MUL" -> vL * vR;
+                                case "DIV" -> vR != 0.0 ? vL / vR : 0.0;
+                                case "POW" -> Math.pow(vL, vR);
+                                case "MOD" -> vR != 0.0 ? vL % vR : 0.0;
+                                case "MIN" -> Math.min(vL, vR);
+                                case "MAX" -> Math.max(vL, vR);
+                                case "SQRT" -> Math.sqrt(vL);
+                                case "ROOT" -> vR != 0.0 ? Math.pow(vL, 1.0 / vR) : 0.0;
+                                case "AVG" -> (vL + vR) / 2.0;
+                                case "ABS" -> Math.abs(vL);
+                                case "HYPOT" -> Math.hypot(vL, vR);
+                                default -> vL + vR; // ADD
+                            };
+
+                            // Dzielenie przez zero, przepełnienie oraz
+                            // nieokreślone wyniki potęgowania nie są danymi.
+                            if (Double.isFinite(result)) {
+                                resultElement = new JsonPrimitive(result);
+                            }
+                        }
+
+                        boolean outputChanged = GateUtils.setOutputIfChanged(
+                                gateObj,
+                                resultElement
+                        );
+
+                        boolean isActive = resultElement.isJsonPrimitive()
+                                && resultElement.getAsJsonPrimitive().isNumber()
+                                && resultElement.getAsDouble() != 0.0;
+
+                        if (outputChanged && plugin.isDebugEnabled()) {
+                            Bukkit.getConsoleSender().sendMessage(
+                                    AstraRS.DEBUG_PREFIX
+                                            + "§d§lMATH §e" + key
+                                            + " §7result: §a§l"
+                                            + resultElement
+                            );
+                        }
+
+                        GateUtils.syncOutput(
+                                plugin,
+                                gateObj,
+                                ctx,
+                                key,
+                                isActive,
+                                outputChanged
+                        );
+                    }
+
+                    // ==============================================
+                    // DECIMAL_ACCUMULATOR — liczby całkowite long
+                    // ==============================================
+
+                    case "DECIMAL_ACCUMULATOR" -> {
+                        boolean reset = ctx.pLeft() || ctx.pRight();
+
+                        Long input = GateUtils.getNumberFrom(
+                                ctx.dirs().backBlock(),
+                                plugin
+                        );
+
+                        if (reset) {
+                            boolean outputChanged = GateUtils.setOutputIfChanged(
+                                    gateObj,
+                                    new JsonPrimitive(0L)
+                            );
+
+                            GateUtils.setNullIfChanged(gateObj, "last_input");
+
+                            GateUtils.syncOutput(
+                                    plugin,
+                                    gateObj,
+                                    ctx,
+                                    key,
+                                    true,
+                                    outputChanged
+                            );
+
+                        } else if (input == null
+                                || input < 0L
+                                || input > 9L) {
+
+                            // Brak prawidłowej cyfry pozwala później
+                            // ponownie przyjąć tę samą cyfrę.
+                            GateUtils.setNullIfChanged(gateObj, "last_input");
+
+                        } else {
+                            Long lastInput = GateUtils.readLongOrNull(
+                                    gateObj,
+                                    "last_input"
+                            );
+
+                            // Jedno dopisanie na każdą zmianę cyfry.
+                            // Stała wartość wejściowa nie jest dopisywana
+                            // ponownie co tick.
+                            if (lastInput == null || lastInput.longValue() != input) {
+                                long currentValue = GateUtils.readLong(
+                                        gateObj,
+                                        "current_out",
+                                        0L
+                                );
+
                                 try {
-                                    currentVal = Long.parseLong(lastRes);
-                                } catch (Exception e) {
-                                    currentVal = 0;
+                                    long result = Math.addExact(
+                                            Math.multiplyExact(
+                                                    currentValue,
+                                                    10L
+                                            ),
+                                            input
+                                    );
+
+                                    boolean outputChanged =
+                                            GateUtils.setOutputIfChanged(
+                                                    gateObj,
+                                                    new JsonPrimitive(result)
+                                            );
+
+                                    GateUtils.setLongIfChanged(
+                                            gateObj,
+                                            "last_input",
+                                            input
+                                    );
+
+                                    GateUtils.syncOutput(
+                                            plugin,
+                                            gateObj,
+                                            ctx,
+                                            key,
+                                            true,
+                                            outputChanged
+                                    );
+
+                                } catch (ArithmeticException ignored) {
+                                    // Zapamiętujemy odrzuconą cyfrę, żeby
+                                    // nie wykonywać tej samej nieudanej
+                                    // operacji i nie logować jej co tick.
+                                    GateUtils.setLongIfChanged(
+                                            gateObj,
+                                            "last_input",
+                                            input
+                                    );
+
+                                    if (plugin.isDebugEnabled()) {
+                                        Bukkit.getConsoleSender().sendMessage(
+                                                AstraRS.DEBUG_PREFIX
+                                                        + "§cDECIMAL_ACCUMULATOR §7at §e"
+                                                        + key
+                                                        + " §7overflow; value unchanged."
+                                        );
+                                    }
                                 }
-
-                                long result = (currentVal * 10L) + inputVal;
-
-                                gateObj.addProperty("current_out", String.valueOf(result));
-                                gateObj.addProperty("state", true);
-                                GateUtils.updateOutput(plugin, key, ctx.dirs().targetBlock(), true);
-
-                                // Zapisujemy, że ten sygnał został już przetworzony
-                                gateObj.addProperty("last_input", inputVal);
-                            }
-                        }
-                        // Jeśli sygnał zniknął, resetujemy "last_input", żeby pozwolić na kolejny impuls
-                        else if (inputVal == Long.MIN_VALUE) {
-                            long storedLastInput = gateObj.has("last_input") ? gateObj.get("last_input").getAsLong() : Long.MIN_VALUE;
-                            if (storedLastInput != Long.MIN_VALUE) {
-                                gateObj.addProperty("last_input", Long.MIN_VALUE);
                             }
                         }
                     }
-                }
 
-                case "COMPARATOR" -> {
-                    long vL = GateUtils.getNumberFrom(ctx.dirs().leftBlock(), plugin);
-                    long vR = GateUtils.getNumberFrom(ctx.dirs().rightBlock(), plugin);
+                    // ==============================================
+                    // COMPARATOR — porównania liczb double
+                    // ==============================================
 
-                    // Jeśli lewe wejście (dane) to MIN_VALUE, od razu gasimy wyjście
-                    if (vL == Long.MIN_VALUE) {
-                        String currentOut = gateObj.has("current_out") ? gateObj.get("current_out").getAsString() : "";
-                        if (!"MIN_VALUE".equals(currentOut)) {
-                            gateObj.addProperty("current_out", "MIN_VALUE");
-                            gateObj.addProperty("state", false);
-                            // Przekazujemy false, bo brak danych = brak sygnału
-                            GateUtils.updateOutput(plugin, key, ctx.dirs().targetBlock(), false);
-                        }
-                        break;
-                    }
+                    case "COMPARATOR" -> {
+                        Double leftInput = GateUtils.getDoubleFrom(
+                                ctx.dirs().leftBlock(),
+                                plugin
+                        );
 
-                    long valR = (vR == Long.MIN_VALUE) ? 0 : vR;
-                    String m = gateObj.has("mode") ? gateObj.get("mode").getAsString() : "==";
+                        Double rightInput = GateUtils.getDoubleFrom(
+                                ctx.dirs().rightBlock(),
+                                plugin
+                        );
 
-                    boolean result = switch (m) {
-                        case ">"  -> vL > valR;
-                        case "<"  -> vL < valR;
-                        case "==" -> vL == valR;
-                        case ">=" -> vL >= valR;
-                        case "<=" -> vL <= valR;
-                        case "!=" -> vL != valR;
-                        default   -> false;
-                    };
+                        JsonElement resultElement = JsonNull.INSTANCE;
+                        boolean result = false;
 
-                    long finalVal = result ? vL : Long.MIN_VALUE;
-                    String currentResStr = String.valueOf(finalVal);
-                    String lastOutStr = gateObj.has("current_out") ? gateObj.get("current_out").getAsString() : "";
-
-                    if (!currentResStr.equals(lastOutStr)) {
-                        if (plugin.isDebugMode()) {
-                            String compColor = result ? "§a" : "§c";
-                            Bukkit.getConsoleSender().sendMessage(
-                                    AstraRS.DEBUG_PREFIX + "§2COMPARATOR §7at §e" + key + " §7result (§6" + m + "§7): " + compColor + (result ? "TRUE" : "FALSE")
+                        // Bez obu liczb wynik nie istnieje.
+                        if (leftInput != null && rightInput != null) {
+                            int comparison = GateUtils.compareDoubles(
+                                    leftInput,
+                                    rightInput
                             );
-                        }
-                        gateObj.addProperty("current_out", currentResStr);
-                        gateObj.addProperty("state", result);
 
-                        // POPRAWKA: Przekazujemy wynik logiczny (true/false) do metody Redstone'a
-                        GateUtils.updateOutput(plugin, key, ctx.dirs().targetBlock(), result);
-                    }
-                }
-
-                case "DECODER" -> {
-                    long incoming = GateUtils.getNumberFrom(ctx.dirs().backBlock(), plugin);
-                    long targetValue = gateObj.has("value") ? gateObj.get("value").getAsLong() : 0L;
-                    boolean isMatch = (incoming == targetValue && incoming != 0);
-                    long finalVal = isMatch ? 1L : 0L;
-
-                    String currentResStr = String.valueOf(finalVal);
-                    String lastOutStr = gateObj.has("current_out") ? gateObj.get("current_out").getAsString() : "";
-
-                    if (!currentResStr.equals(lastOutStr)) {
-                        if (plugin.isDebugMode()) {
-                            String matchColor = isMatch ? "§aTRAFIONY" : "§cBRAK DOPASOWANIA";
-                            Bukkit.getConsoleSender().sendMessage(
-                                    AstraRS.DEBUG_PREFIX + "§eDECODER §7at §e" + key + " §7(Searched for: §6" + targetValue + "§7) -> Status: " + matchColor + " §7(Received: §b" + incoming + "§7)"
+                            String mode = GateUtils.readString(
+                                    gateObj,
+                                    "mode",
+                                    "=="
                             );
+
+                            result = switch (mode) {
+                                case ">" -> comparison > 0;
+                                case "<" -> comparison < 0;
+                                case "==" -> comparison == 0;
+                                case ">=" -> comparison >= 0;
+                                case "<=" -> comparison <= 0;
+                                case "!=" -> comparison != 0;
+                                default -> false;
+                            };
+
+                            resultElement = new JsonPrimitive(result);
                         }
-                        gateObj.addProperty("current_out", currentResStr);
-                        gateObj.addProperty("state", isMatch);
-                        GateUtils.updateOutput(plugin, key, ctx.dirs().targetBlock(), isMatch);
-                    }
-                }
 
-                case "RANDOM_BOOLEAN", "RANDOM_NUMBER" -> {
-                    boolean in = ctx.pBack();
-                    boolean lastIn = gateObj.has("lastInput") && gateObj.get("lastInput").getAsBoolean();
+                        boolean outputChanged = GateUtils.setOutputIfChanged(
+                                gateObj,
+                                resultElement
+                        );
 
-                    if (in && !lastIn) {
-                        long minVal = gateObj.has("min") ? gateObj.get("min").getAsLong() : 0L;
-                        long maxVal = gateObj.has("max") ? gateObj.get("max").getAsLong() : 15L;
-
-                        long result = type.equals("RANDOM_BOOLEAN")
-                                ? (ThreadLocalRandom.current().nextBoolean() ? 1L : 0L)
-                                : ThreadLocalRandom.current().nextLong(minVal, maxVal + 1);
-
-                        // SYSTEMOWA POPRAWKA ZAPISU ORAZ STANU (Obsługuje liczby ujemne!)
-                        String currentResStr = String.valueOf(result);
-                        boolean isActive = (result != 0);
-
-                        if (plugin.isDebugMode()) {
+                        if (outputChanged && plugin.isDebugEnabled()) {
                             Bukkit.getConsoleSender().sendMessage(
-                                    AstraRS.DEBUG_PREFIX + "§a§lRANDOM §7[" + type + "] at §e" + key + " §7rolled value: §b§l" + result
+                                    AstraRS.DEBUG_PREFIX
+                                            + "§2COMPARATOR §7at §e"
+                                            + key + " §7result: "
+                                            + (resultElement.isJsonNull()
+                                            ? "§7NO DATA"
+                                            : result ? "§aTRUE" : "§cFALSE")
                             );
                         }
 
-                        gateObj.addProperty("current_out", currentResStr);
-                        gateObj.addProperty("state", isActive);
-                        GateUtils.updateOutput(plugin, key, ctx.dirs().targetBlock(), isActive);
+                        GateUtils.syncOutput(
+                                plugin,
+                                gateObj,
+                                ctx,
+                                key,
+                                result,
+                                outputChanged
+                        );
                     }
 
-                    if (in != lastIn) {
-                        gateObj.addProperty("lastInput", in);
+                    // ==============================================
+                    // DECODER — dekodowanie wartości double
+                    // ==============================================
+
+                    case "DECODER" -> {
+                        Double incoming = GateUtils.getDoubleFrom(
+                                ctx.dirs().backBlock(),
+                                plugin
+                        );
+
+                        double targetValue = GateUtils.readDouble(
+                                gateObj,
+                                "value",
+                                0.0
+                        );
+
+                        boolean isMatch = incoming != null
+                                && GateUtils.compareDoubles(incoming, targetValue) == 0;
+
+                        JsonElement resultElement = incoming == null
+                                ? JsonNull.INSTANCE
+                                : new JsonPrimitive(isMatch);
+
+                        boolean outputChanged = GateUtils.setOutputIfChanged(
+                                gateObj,
+                                resultElement
+                        );
+
+                        if (outputChanged && plugin.isDebugEnabled()) {
+                            String status = incoming == null
+                                    ? "§7NO DATA"
+                                    : isMatch ? "§aMATCH" : "§cNO MATCH";
+
+                            Bukkit.getConsoleSender().sendMessage(
+                                    AstraRS.DEBUG_PREFIX
+                                            + "§eDECODER §7at §e"
+                                            + key
+                                            + " §7(target: §6" + targetValue
+                                            + "§7, received: §b" + incoming
+                                            + "§7) -> " + status
+                            );
+                        }
+
+                        GateUtils.syncOutput(
+                                plugin,
+                                gateObj,
+                                ctx,
+                                key,
+                                isMatch,
+                                outputChanged
+                        );
+                    }
+
+                    // ==============================================
+                    // RANDOM_NUMBER
+                    // ==============================================
+
+                    case "RANDOM_NUMBER" -> {
+                        boolean input = ctx.pBack();
+
+                        boolean lastInput = GateUtils.readBoolean(
+                                gateObj,
+                                "last_input",
+                                false
+                        );
+
+                        // Losowanie wyłącznie na zboczu narastającym.
+                        if (input && !lastInput) {
+                            double min = GateUtils.readDouble(
+                                    gateObj,
+                                    "min",
+                                    0.0
+                            );
+
+                            double max = GateUtils.readDouble(
+                                    gateObj,
+                                    "max",
+                                    15.0
+                            );
+
+                            double value = GateUtils.randomDouble(min, max);
+
+                            JsonElement resultElement = new JsonPrimitive(value);
+
+                            boolean isActive = value != 0.0;
+
+                            boolean outputChanged = GateUtils.setOutputIfChanged(
+                                    gateObj,
+                                    resultElement
+                            );
+
+                            GateUtils.syncOutput(
+                                    plugin,
+                                    gateObj,
+                                    ctx,
+                                    key,
+                                    isActive,
+                                    outputChanged
+                            );
+
+                            if (plugin.isDebugEnabled()) {
+                                Bukkit.getConsoleSender().sendMessage(
+                                        AstraRS.DEBUG_PREFIX
+                                                + "§a§lRANDOM §7[" + type + "] at §e" + key
+                                                + " §7rolled value: §b§l" + resultElement
+                                );
+                            }
+                        }
+
+                        GateUtils.setBooleanIfChanged(
+                                gateObj,
+                                "last_input",
+                                input
+                        );
                     }
                 }
-            }
+            });
         }
     }
 }

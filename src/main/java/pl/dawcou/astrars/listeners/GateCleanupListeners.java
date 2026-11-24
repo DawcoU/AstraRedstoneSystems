@@ -16,11 +16,11 @@ import pl.dawcou.astrars.gates.utils.GateUtils;
 
 import java.util.List;
 
-public class GateCleanupListener implements Listener {
+public class GateCleanupListeners implements Listener {
 
     private final AstraRS plugin;
 
-    public GateCleanupListener(AstraRS plugin) {
+    public GateCleanupListeners(AstraRS plugin) {
         this.plugin = plugin;
     }
 

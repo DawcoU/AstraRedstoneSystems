@@ -4,10 +4,9 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import pl.dawcou.astrars.AstraRS;
 import pl.dawcou.astrars.file.GateDataManager;
-import pl.dawcou.astrars.gates.data.GateContext;
 import pl.dawcou.astrars.gates.data.GateContextFactory;
-import pl.dawcou.astrars.gates.utils.GateUtils;
 import pl.dawcou.astrars.gates.data.GateValidator;
+import pl.dawcou.astrars.gates.utils.GateUtils;
 
 import java.util.Map;
 import java.util.Set;
@@ -17,14 +16,26 @@ public class MemoryGates {
     private final AstraRS plugin;
     private final GateValidator validator;
 
-    private static final Set<String> OUT_GATES = Set.of("LATCH", "MEMORY_CELL", "TFF");
-    private static final Set<String> SIDE_GATES = Set.of("LATCH", "MEMORY_CELL");
-    private static final Set<String> BACK_GATES = Set.of("TFF", "MEMORY_CELL");
+    private static final Set<String> HANDLED_TYPES =
+            Set.of("LATCH", "MEMORY_CELL", "TFF");
+
+    private static final Set<String> OUT_GATES =
+            Set.of("LATCH", "MEMORY_CELL", "TFF");
+
+    private static final Set<String> SIDE_GATES =
+            Set.of("LATCH", "MEMORY_CELL");
+
+    private static final Set<String> BACK_GATES =
+            Set.of("TFF", "MEMORY_CELL");
 
     public MemoryGates(AstraRS plugin, GateValidator validator) {
         this.plugin = plugin;
         this.validator = validator;
     }
+
+    // --------------------------------------------------
+    // GŁÓWNA PĘTLA
+    // --------------------------------------------------
 
     public void runMemoryGates() {
         GateDataManager manager = plugin.getGateDataManager();
@@ -32,61 +43,108 @@ public class MemoryGates {
         if (gatesSection == null) return;
 
         for (Map.Entry<String, JsonElement> entry : gatesSection.entrySet()) {
-            GateContext ctx = GateContextFactory.create(entry, validator);
-            if (ctx == null) continue;
+            GateContextFactory.createAndRun(entry, validator, plugin, ctx -> {
+                if (ctx == null) return;
 
-            boolean oldState = ctx.currentState();
-            boolean newState = oldState;
+                if (!HANDLED_TYPES.contains(ctx.type())) return;
 
-            // LOGIKA BRAMEK
-            switch (ctx.type()) {
-                case "LATCH" -> {
-                    // RS Latch: right = Set, left = Reset
-                    if (ctx.pRight()) newState = true;
-                    else if (ctx.pLeft()) newState = false;
-                }
-                case "MEMORY_CELL" -> {
-                    // Tył = Data, Prawo = Write, Lewo = Read
-                    boolean memory = ctx.json().has("memory") && ctx.json().get("memory").getAsBoolean();
+                boolean oldState = ctx.currentState();
+                boolean newState = oldState;
 
-                    // ZAPIS
-                    if (ctx.pRight()) {
-                        memory = ctx.pBack();
-                        ctx.json().addProperty("memory", memory);
+                // Odczyt wejść
+                boolean pBack = ctx.pBack();
+                boolean pLeft = ctx.pLeft();
+                boolean pRight = ctx.pRight();
+
+                // ----------------------------------------------------
+                // LOGIKA BRAMEK
+                // ----------------------------------------------------
+
+                switch (ctx.type()) {
+                    case "LATCH" -> {
+                        // RS Latch: right = Set, left = Reset.
+                        if (pRight) newState = true;
+                        else if (pLeft) newState = false;
                     }
 
-                    // ODCZYT
-                    newState = memory && ctx.pLeft();
-                }
-                case "TFF" -> {
-                    // Toggle Flip-Flop: Zbocze narastające na tyłach
-                    boolean lastIn = ctx.json().has("lastInput") && ctx.json().get("lastInput").getAsBoolean();
-                    if (ctx.pBack() != lastIn) {
-                        if (ctx.pBack()) { // Jeśli to zbocze narastające (wejście prądu)
-                            newState = !oldState;
+                    case "MEMORY_CELL" -> {
+                        // Tył = Data, prawo = Write, lewo = Read.
+                        boolean memory = ctx.json().has("memory")
+                                && ctx.json().get("memory").getAsBoolean();
+
+                        // ZAPIS
+                        if (pRight) {
+                            memory = pBack;
+                            ctx.json().addProperty("memory", memory);
                         }
-                        ctx.json().addProperty("lastInput", ctx.pBack());
+
+                        // ODCZYT
+                        newState = memory && pLeft;
+                    }
+
+                    case "TFF" -> {
+                        // Toggle Flip-Flop: zbocze narastające na wejściu tylnym.
+                        boolean lastIn = ctx.json().has("lastInput")
+                                && ctx.json().get("lastInput").getAsBoolean();
+
+                        if (pBack != lastIn) {
+                            if (pBack) {
+                                newState = !oldState;
+                            }
+                            ctx.json().addProperty("lastInput", pBack);
+                        }
                     }
                 }
-            }
 
-            if (newState != oldState) {
-                ctx.json().addProperty("state", newState);
-                GateUtils.updateOutput(plugin, ctx.key(), ctx.dirs().targetBlock(), newState);
-            }
+                // ----------------------------------------------------
+                // AKTUALIZACJA WYJŚCIA
+                // ----------------------------------------------------
 
-            if (OUT_GATES.contains(ctx.type())) {
-                GateUtils.spawnStatusParticle(ctx.gateBlock(), ctx.dirs().out(), newState);
-            }
+                JsonElement lastOut = ctx.json().get("current_out");
+                boolean outputChanged = lastOut == null
+                        || !lastOut.isJsonPrimitive()
+                        || !lastOut.getAsJsonPrimitive().isBoolean()
+                        || lastOut.getAsBoolean() != newState;
 
-            if (SIDE_GATES.contains(ctx.type())) {
-                GateUtils.spawnStatusParticle(ctx.gateBlock(), ctx.dirs().right(), ctx.pRight());
-                GateUtils.spawnStatusParticle(ctx.gateBlock(), ctx.dirs().left(), ctx.pLeft());
-            }
+                // Zapisujemy wynik logiczny w polu current_out.
+                if (outputChanged) {
+                    ctx.json().addProperty("current_out", newState);
+                }
 
-            if (BACK_GATES.contains(ctx.type())) {
-                GateUtils.spawnStatusParticle(ctx.gateBlock(), ctx.dirs().back(), ctx.pBack());
-            }
+                GateUtils.syncOutput(
+                        plugin,
+                        ctx.json(),
+                        ctx,
+                        ctx.key(),
+                        newState,
+                        outputChanged
+                );
+
+                // ----------------------------------------------------
+                // CZĄSTECZKI STATUSU
+                // ----------------------------------------------------
+
+                if (OUT_GATES.contains(ctx.type())) {
+                    GateUtils.spawnStatusParticle(
+                            ctx.gateBlock(), ctx.dirs().out(), newState
+                    );
+                }
+
+                if (SIDE_GATES.contains(ctx.type())) {
+                    GateUtils.spawnStatusParticle(
+                            ctx.gateBlock(), ctx.dirs().right(), pRight
+                    );
+                    GateUtils.spawnStatusParticle(
+                            ctx.gateBlock(), ctx.dirs().left(), pLeft
+                    );
+                }
+
+                if (BACK_GATES.contains(ctx.type())) {
+                    GateUtils.spawnStatusParticle(
+                            ctx.gateBlock(), ctx.dirs().back(), pBack
+                    );
+                }
+            });
         }
     }
 }

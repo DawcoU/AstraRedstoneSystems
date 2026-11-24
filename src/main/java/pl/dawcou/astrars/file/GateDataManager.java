@@ -180,29 +180,6 @@ public class GateDataManager {
         return null;
     }
 
-    public String getString(String gateKey, String path, String def) {
-        JsonObject gate = getGate(gateKey);
-        if (gate != null && gate.has(path) && gate.get(path).isJsonPrimitive()) {
-            return gate.get(path).getAsString();
-        }
-        return def;
-    }
-
-    public boolean getBoolean(String gateKey, String path, boolean def) {
-        JsonObject gate = getGate(gateKey);
-        if (gate != null && gate.has(path) && gate.get(path).isJsonPrimitive()) {
-            return gate.get(path).getAsBoolean();
-        }
-        return def;
-    }
-
-    public void setBoolean(String gateKey, String path, boolean value) {
-        JsonObject gate = getGate(gateKey);
-        if (gate != null) {
-            gate.addProperty(path, value);
-        }
-    }
-
     public boolean isLoadedSuccessfully() {
         return loadedSuccessfully;
     }

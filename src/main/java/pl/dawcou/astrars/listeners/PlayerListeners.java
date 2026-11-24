@@ -6,11 +6,11 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import pl.dawcou.astrars.AstraRS;
 
-public class UpdateNotifyListener implements Listener {
+public class PlayerListeners implements Listener {
 
     private final AstraRS plugin;
 
-    public UpdateNotifyListener(AstraRS plugin) {
+    public PlayerListeners(AstraRS plugin) {
         this.plugin = plugin;
     }
 
@@ -18,7 +18,7 @@ public class UpdateNotifyListener implements Listener {
     public void onJoin(PlayerJoinEvent e) {
         Player p = e.getPlayer();
 
-        if (plugin.getConfig().getBoolean("settings.check-updates", true)
+        if (plugin.getConfig().getBoolean("settings.update.check-updates", true)
                 && p.hasPermission("astrars.update")) {
 
             plugin.getUpdateChecker().checkForUpdates(p);

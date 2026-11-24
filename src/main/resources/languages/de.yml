@@ -1,0 +1,126 @@
+# #############################################################
+# #                                                           #
+# #             AstraRedstoneSystems - Sprachdatei            #
+# #                     Sprache: Deutsch (DE)                 #
+# #                                                           #
+# #############################################################
+
+# Du kannst Farbkoordinaten (z.B. &a, &c, &l), HEX-Codes, Farbverläufe und Platzhalter wie %type%, %val%, %count% verwenden.
+
+messages:
+
+
+  # --- Allgemein / System ---
+  general:
+    only-players: "&cDieser Befehl kann nicht von der Konsole aus ausgeführt werden!"
+    no-permission: "&cDazu hast du keine Berechtigung!"
+    reload-success: "&aPlugin erfolgreich neu geladen!"
+
+
+  # --- Hauptbefehl für Gatter /gate ---
+  gate-cmd:
+    usage: "&cVerwendung: &6/gate <Kategorie> <Typ> <Parameter>"
+    need-channel: "&cDu musst einen Kanal angeben! <kanal1,kanal2...>"
+    provide-limit: "&cBitte gib ein Limit an!"
+    provide-value: "&cBitte gib einen Wert an!"
+    provide-text: "&cBitte gib einen Text an!"
+    provide-range: "&cBitte gib einen Bereich an (1-15)!"
+    provide-mode: "&cBitte gib einen Modus an!"
+    provide-sign: "&cBitte gib einen Operator an! (>, <, ==, !=, >=, <=)"
+    provide-string-sign: "&cBitte gib einen Text-Operator an! (EQUALS, EQUALS_IGNORE_CASE, CONTAINS, STARTS_WITH, ENDS_WITH, EMPTY)"
+    provide-time: "&cBitte gib eine Zeit an (5t-10s)!"
+    provide-unit: "&cBitte gib eine Einheit an: &e't' &7(Ticks) &coder &e's' &7(Sekunden)&c!"
+    provide-delay: "&cBitte gib eine Verzögerung an (1t-10s)!"
+    provide-frequency: "&cBitte gib eine Frequenz an (1t-10s)!"
+    invalid-sign: "&cDies ist kein gültiger mathematischer Operator!"
+    invalid-string-sign: "&cDies ist kein gültiger Text-Operator!"
+    invalid-time: "&cBitte gib ein gültiges Format an (z.B. 10s)!"
+    wrong-format: "&cUngültiges Format! Verwende: min-max (z.B. 0-10)"
+    not-a-number: "&cDies ist keine Zahl!"
+    negative-number: "&cDu kannst keine negative Zahl eingeben!"
+    min-greater-than-max: "&cDer Minimalwert kann nicht größer als der Maximalwert sein!"
+    limit-range: "&cDas Limit muss zwischen 1 und 1000 liegen!"
+    range-bounds: "&cDer Bereich muss zwischen 1 und 15 liegen!"
+    repeater-ticks-range: "&cVerzögerung in Ticks muss zwischen 1t und 200t (10s) liegen!"
+    repeater-seconds-range: "&cVerzögerung in Sekunden muss zwischen 1s und 10s liegen!"
+    clock-ticks-range: "&cFrequenz in Ticks muss zwischen 1t und 200t (10s) liegen!"
+    clock-seconds-range: "&cFrequenz in Sekunden muss zwischen 1s und 10s liegen!"
+
+
+  # --- Gatter-Interaktion (Platzieren/Abbauen/Gegenstände) ---
+  gate:
+    prefix-item: "&4Gatter: &c"
+    received: "&aDu hast ein Gatter erhalten: &e%type%"
+    placed: "&aGatter &e%type% &aplatziert &6Ausgang: &e%out%"
+    removed: "&cGatter &6%type% &cwurde entfernt!"
+    unknown-type: "&cUnbekannter Gatter-Typ!"
+    unsupported: "&cGatter &6%type% &cwird auf diesem Server nicht ordnungsgemäß funktionieren"
+    power-break-deny: "&cDies ist ein Power-Block, der den Gatter-Ausgang mit Strom versorgt!"
+
+
+  # --- Gatter-Bearbeitungs-GUI ---
+  gui:
+    title: "&8Bearbeiten: &f%type%"
+    saved: "&aGatter-Einstellungen wurden gespeichert!"
+    value-changed: "&aWert für Gatter &e%type% &fgeändert zu: &f%val%"
+
+    status-inputs: "&eModus: &f%val% Eingänge &7(Klicken zum Umschalten)"
+    status-time: "&7Aktuelle Zeit: &e%val% Ticks"
+    status-value: "&7Aktueller Wert: &e%val%"
+    status-limit: "&7Aktuelles Limit: &e%val%"
+    status-range: "&7Aktueller Bereich: &e%val% Blöcke"
+    status-random: "&7Bereich: &e%min% &7bis &e%max%"
+    status-mode: "&7Aktueller Modus: &e%mode%"
+
+
+  # --- Auswahl (Auswahlwerkzeug) ---
+  selector:
+    item-name: "&dGatter-Auswahlstab"
+    received: "&aDu hast einen Gatter-Auswahlstab erhalten!"
+    pos-1: "&ePunkt 1 gesetzt!"
+    pos-2: "&ePunkt 2 gesetzt!"
+    both-required: "&cDu musst zuerst beide Punkte auswählen!"
+    cut: "&aBereich ausgeschnitten, &f%count% &cLogikgatter entfernt"
+
+
+  # --- Bereichs-Bearbeitung (Kopieren/Einfügen/Drehen/Rückgängig/Wiederherstellen) ---
+  clipboard:
+    copy-success: "&a&e%count% &aGatter in die Zwischenablage kopiert!"
+    empty: "&cDeine Zwischenablage ist leer! Verwende zuerst /ars copy"
+    paste-success: "&aErfolgreich &e%count% &aGatter eingefügt!"
+    rotate-success: "&7Inhalt der Zwischenablage um &f%degree% &7Grad gedreht"
+    invalid-rotate-angle: "&cUngültiger Winkel! Verwende 90, -90 oder 180"
+    undo-success: "&aLetztes Einfügen rückgängig gemacht (&7%count% Gatter&a)"
+    nothing-to-undo: "&cDu hast nichts zum Rückgängigmachen!"
+    redo-success: "&eLetztes Rückgängigmachen wiederhergestellt (&7%count% &eGatter)"
+    nothing-to-redo: "&cDu hast nichts zum Wiederherstellen!"
+
+
+  # --- Schemas ---
+  schema:
+    specify-action: "&cDu musst eine Aktion wählen! Verwendung: &e/ars schematic <save/load/delete> [name]"
+    specify-name: "&cDu musst einen Schemanamen angeben! Verwendung: &e/ars schematic <save/load/delete> [name]"
+    invalid-name: "&cDer Schemaname enthält ungültige Zeichen! Verwende nur Buchstaben, Zahlen, _ und -"
+    not-found: "&cSchemadatei namens &e%name%.json &cwurde im Plugin-Verzeichnis nicht gefunden"
+    corrupted: "&cDie Schemadatei ist leer, beschädigt oder hat eine ungültige JSON-Struktur"
+    file-exists: "&cSchemadatei &e%name%.json &cexistiert bereits!"
+    save-success: "&aSchema &e%name% &aerfolgreich auf der Festplatte gespeichert! &7(%count% Gatter)"
+    save-error: "&cBeim Speichern des Schemas ist ein kritischer Fehler aufgetreten!"
+    load-success: "&aSchema &e%name% &7(%count% Gatter) &aerfolgreich in die Zwischenablage geladen! Führe den Einfügen-Befehl aus, um es in der Welt zu platzieren"
+    deleted: "&aSchema &e%name%.json &cerfolgreich aus den Serverdateien gelöscht"
+    delete-error: "&cBeim Löschen der Datei &e%name%.json &cist ein Fehler aufgetreten!"
+
+
+  # --- Update-System ---
+  update:
+    in-progress: "&cDie Suche nach Aktualisierungen läuft bereits..."
+    api-error: "&cVerbindung zur Modrinth-API fehlgeschlagen"
+    no-versions: "&cKeine veröffentlichten Versionen gefunden"
+    up-to-date: "&aAstraRS ist bereits auf dem neuesten Stand"
+    local-newer: "&eDie installierte Version ist neuer als die auf Modrinth veröffentlichte Version. Update übersprungen"
+    no-files: "&cKeine herunterladbare Datei für die neueste Version gefunden"
+    directory-error: "&cDas Update-Verzeichnis konnte nicht erstellt werden"
+    download-error: "&cDas Update konnte nicht heruntergeladen werden"
+    downloaded: "&aAstraRS-Update erfolgreich heruntergeladen"
+    restart-required: "&eStarte den Server neu, um das Update anzuwenden"
+    failed: "&cBeim Überprüfen oder Herunterladen des Updates ist ein Fehler aufgetreten"

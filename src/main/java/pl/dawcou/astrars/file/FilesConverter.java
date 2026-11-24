@@ -73,11 +73,11 @@ public class FilesConverter {
                 // Robimy bezpieczną kopię logic_gates.yml.old, a oryginał zostawiamy/zmieniamy rozszerzenie
                 File backupFile = new File(plugin.getDataFolder(), "logic_gates.yml.old");
                 if (oldYamlFile.renameTo(backupFile)) {
-                    plugin.getNoticeManager().sendSuccessNotice("logic_gates.yml -> gates.json");
+                    plugin.getNoticeManager().sendSuccessMigrationNotice("logic_gates.yml -> gates.json");
                 }
 
             } catch (IOException e) {
-                plugin.getNoticeManager().sendErrorNotice("logic_gates.yml");
+                plugin.getNoticeManager().sendErrorMigrationNotice("logic_gates.yml");
                 e.printStackTrace();
             }
         }
@@ -98,9 +98,30 @@ public class FilesConverter {
             } else {
                 Object value = section.get(key);
 
-                // Automatyczna zamiana VARIABLE_GATE -> DISK_GATE
-                if ("type".equals(key) && "VARIABLE_GATE".equals(value)) {
-                    value = "DISK_GATE";
+                // Migracje typów bramek przy odczycie
+                if ("type".equals(key) && value instanceof String typeStr) {
+                    // Sekwencyjna migracja ze starszych wersji: VARIABLE_GATE -> DISK -> DISK
+                    if ("VARIABLE_GATE".equals(typeStr)) {
+                        typeStr = "DISK";
+                    }
+                    if ("DISK_GATE".equals(typeStr)) {
+                        typeStr = "DISK";
+                    }
+
+                    // Pozostałe zmiany nazw bramek na bardziej uniwersalne / skrócone
+                    if ("CLOCK_GATE".equals(typeStr)) {
+                        typeStr = "CLOCK";
+                    } else if ("NUMBER_GATE".equals(typeStr)) {
+                        typeStr = "NUMBER_SENDER";
+                    } else if ("BOOLEAN_GATE".equals(typeStr)) {
+                        typeStr = "BOOLEAN_SENDER";
+                    } else if ("RAM_GATE".equals(typeStr)) {
+                        typeStr = "RAM";
+                    } else if ("STRING_GATE".equals(typeStr)) {
+                        typeStr = "STRING_SENDER";
+                    }
+
+                    value = typeStr;
                 }
 
                 addPropertyToJson(jsonObject, key, value);
@@ -120,9 +141,8 @@ public class FilesConverter {
             jsonObject.addProperty(key, (Boolean) value);
         } else if (value instanceof String) {
             jsonObject.addProperty(key, (String) value);
-        } else if (value instanceof List) {
+        } else if (value instanceof List<?> list) {
             JsonArray jsonArray = new JsonArray();
-            List<?> list = (List<?>) value;
             for (Object item : list) {
                 if (item instanceof Map) {
                     // W razie skomplikowanych list obiektów w YAML

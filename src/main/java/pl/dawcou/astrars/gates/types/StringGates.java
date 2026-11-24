@@ -1,12 +1,13 @@
 package pl.dawcou.astrars.gates.types;
 
 import com.google.gson.JsonElement;
+import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
 import org.bukkit.Bukkit;
 
 import pl.dawcou.astrars.AstraRS;
 import pl.dawcou.astrars.file.GateDataManager;
-import pl.dawcou.astrars.gates.data.GateContext;
 import pl.dawcou.astrars.gates.data.GateContextFactory;
 import pl.dawcou.astrars.gates.data.GateValidator;
 import pl.dawcou.astrars.gates.utils.GateUtils;
@@ -18,124 +19,236 @@ public class StringGates {
     private final AstraRS plugin;
     private final GateValidator validator;
 
-    private static final Set<String> OUT_GATES = Set.of("STRING_GATE", "STRING_COMPARATOR", "STRING_DECODER");
-    private static final Set<String> BACK_GATES = Set.of("STRING_GATE", "STRING_DECODER");
+    private static final Set<String> HANDLED_TYPES = Set.of(
+            "STRING_SENDER", "STRING_COMPARATOR", "STRING_DECODER"
+    );
+
+    private static final Set<String> OUT_GATES = Set.of(
+            "STRING_SENDER", "STRING_COMPARATOR", "STRING_DECODER"
+    );
+
+    private static final Set<String> BACK_GATES = Set.of(
+            "STRING_SENDER", "STRING_DECODER"
+    );
 
     public StringGates(AstraRS plugin, GateValidator validator) {
         this.plugin = plugin;
         this.validator = validator;
     }
 
+    // --------------------------------------------------
+    // GŁÓWNA PĘTLA
+    // --------------------------------------------------
+
     public void runStringGates() {
         GateDataManager manager = plugin.getGateDataManager();
         JsonObject gatesSection = manager.getGates();
+
         if (gatesSection == null) return;
 
         for (Map.Entry<String, JsonElement> entry : gatesSection.entrySet()) {
-            GateContext ctx = GateContextFactory.create(entry, validator);
-            if (ctx == null) continue;
+            GateContextFactory.createAndRun(entry, validator, plugin, ctx -> {
+                if (ctx == null) return;
 
-            JsonObject gateObj = ctx.json();
-            String type = ctx.type();
-            String key = ctx.key();
+                if (!HANDLED_TYPES.contains(ctx.type())) return;
 
-            String sL = "";
-            String sR = "";
-            String sBack = "";
+                JsonObject gateObj = ctx.json();
+                String type = ctx.type();
+                String key = ctx.key();
 
-            if (OUT_GATES.contains(type)) {
-                GateUtils.spawnStatusParticle(ctx.gateBlock(), ctx.dirs().out(), ctx.currentState());
-            }
+                String sL = null;
+                String sR = null;
+                String sBack = null;
 
-            if (BACK_GATES.contains(type)) {
-                sBack = GateUtils.getStringFrom(ctx.dirs().backBlock(), plugin);
-                GateUtils.spawnStatusParticle(ctx.gateBlock(), ctx.dirs().back(), ctx.pBack() || !sBack.isEmpty());
-            }
+                // --- EFEKTY WIZUALNE ---
 
-            if (type.equals("STRING_COMPARATOR")) {
-                sL = GateUtils.getStringFrom(ctx.dirs().leftBlock(), plugin);
-                sR = GateUtils.getStringFrom(ctx.dirs().rightBlock(), plugin);
-                GateUtils.spawnStatusParticle(ctx.gateBlock(), ctx.dirs().left(), !sL.isEmpty());
-                GateUtils.spawnStatusParticle(ctx.gateBlock(), ctx.dirs().right(), !sR.isEmpty());
-            }
-
-            switch (type) {
-                case "STRING_GATE" -> {
-                    String storedText = gateObj.has("value") ? gateObj.get("value").getAsString() : "";
-                    String finalText = ctx.pBack() ? storedText : "";
-                    String lastOut = gateObj.has("current_out") ? gateObj.get("current_out").getAsString() : "";
-
-                    if (!finalText.equals(lastOut)) {
-                        if (plugin.isDebugMode()) {
-                            Bukkit.getConsoleSender().sendMessage(
-                                    AstraRS.DEBUG_PREFIX + "§dSTRING_GATE §7at §e" + key + " §7emitted text: §5\"" + finalText + "\""
-                            );
-                        }
-                        gateObj.addProperty("current_out", finalText);
-                        gateObj.addProperty("state", ctx.pBack());
-                        GateUtils.updateOutput(plugin, key, ctx.dirs().targetBlock(), ctx.pBack());
-                    }
+                // 1. EFEKT WYJŚCIA
+                if (OUT_GATES.contains(type)) {
+                    GateUtils.spawnStatusParticle(
+                            ctx.gateBlock(),
+                            ctx.dirs().out(),
+                            ctx.currentState()
+                    );
                 }
 
-                case "STRING_COMPARATOR" -> {
-                    String mode = gateObj.has("mode") ? gateObj.get("mode").getAsString().toUpperCase() : "EQUALS";
+                // 2. EFEKT WEJŚCIA Z TYŁU
+                if (BACK_GATES.contains(type)) {
+                    sBack = GateUtils.getStringFrom(
+                            ctx.dirs().backBlock(), plugin
+                    );
 
-                    if (sL.isEmpty()) {
-                        String currentOut = gateObj.has("current_out") ? gateObj.get("current_out").getAsString() : "";
-
-                        if (!currentOut.isEmpty()) {
-                            gateObj.addProperty("current_out", "");
-                            gateObj.addProperty("state", false);
-                            GateUtils.updateOutput(plugin, key, ctx.dirs().targetBlock(), false);
-                        }
-                        continue;
-                    }
-
-                    boolean result = switch (mode) {
-                        case "EQUALS"              -> sL.equals(sR);
-                        case "EQUALS_IGNORE_CASE"  -> sL.equalsIgnoreCase(sR);
-                        case "CONTAINS"            -> sL.contains(sR);
-                        case "STARTS_WITH"         -> sL.startsWith(sR);
-                        case "ENDS_WITH"           -> sL.endsWith(sR);
-                        default                    -> false;
-                    };
-
-                    String finalVal = result ? sL : "";
-                    String lastOutStr = gateObj.has("current_out") ? gateObj.get("current_out").getAsString() : "";
-
-                    if (!finalVal.equals(lastOutStr)) {
-                        if (plugin.isDebugMode()) {
-                            String matchColor = result ? "§a" : "§c";
-                            Bukkit.getConsoleSender().sendMessage(
-                                    AstraRS.DEBUG_PREFIX + "§dSTRING_COMP §7at §e" + key + " §7result (§6" + mode + "§7): " + matchColor + (result ? "TRUE" : "FALSE") + " §8[Sending: \"" + finalVal + "\"]"
-                            );
-                        }
-                        gateObj.addProperty("current_out", finalVal);
-                        gateObj.addProperty("state", result);
-
-                        GateUtils.updateOutput(plugin, key, ctx.dirs().targetBlock(), result);
-                    }
+                    // Pusty tekst jest prawidłowym sygnałem danych.
+                    GateUtils.spawnStatusParticle(
+                            ctx.gateBlock(),
+                            ctx.dirs().back(),
+                            ctx.pBack() || sBack != null
+                    );
                 }
 
-                case "STRING_DECODER" -> {
-                    String targetValue = gateObj.has("value") ? gateObj.get("value").getAsString() : "";
+                // 3. EFEKTY WEJŚĆ BOCZNYCH
+                if (type.equals("STRING_COMPARATOR")) {
+                    sL = GateUtils.getStringFrom(
+                            ctx.dirs().leftBlock(), plugin
+                    );
 
-                    boolean isMatch = !sBack.isEmpty() && sBack.equals(targetValue);
-                    String finalVal = isMatch ? "1" : "";
-                    String lastOut = gateObj.has("current_out") ? gateObj.get("current_out").getAsString() : "";
+                    sR = GateUtils.getStringFrom(
+                            ctx.dirs().rightBlock(), plugin
+                    );
 
-                    if (!finalVal.equals(lastOut)) {
-                        if (plugin.isDebugMode()) {
+                    GateUtils.spawnStatusParticle(
+                            ctx.gateBlock(),
+                            ctx.dirs().left(),
+                            sL != null
+                    );
+
+                    GateUtils.spawnStatusParticle(
+                            ctx.gateBlock(),
+                            ctx.dirs().right(),
+                            sR != null
+                    );
+                }
+
+                // --- LOGIKA BRAMEK ---
+                switch (type) {
+                    case "STRING_SENDER" -> {
+                        String storedText = gateObj.has("value")
+                                ? gateObj.get("value").getAsString()
+                                : "";
+
+                        boolean enabled = ctx.pBack();
+
+                        JsonElement result = enabled
+                                ? new JsonPrimitive(storedText)
+                                : JsonNull.INSTANCE;
+
+                        boolean outputChanged = GateUtils.setOutputIfChanged(
+                                gateObj, result
+                        );
+
+                        if (outputChanged && plugin.isDebugEnabled()) {
                             Bukkit.getConsoleSender().sendMessage(
-                                    AstraRS.DEBUG_PREFIX + "§dSTRING_DECODER §7at §e" + key + " §7matched: §a" + isMatch
+                                    AstraRS.DEBUG_PREFIX
+                                            + "§dSTRING_SENDER §7at §e" + key
+                                            + " §7emitted text: "
+                                            + (enabled
+                                            ? "§5\"" + storedText + "\""
+                                            : "§7NO DATA")
                             );
                         }
-                        gateObj.addProperty("current_out", finalVal);
-                        gateObj.addProperty("state", isMatch);
-                        GateUtils.updateOutput(plugin, key, ctx.dirs().targetBlock(), isMatch);
+
+                        GateUtils.syncOutput(
+                                plugin,
+                                gateObj,
+                                ctx,
+                                key,
+                                enabled,
+                                outputChanged
+                        );
+                    }
+
+                    case "STRING_COMPARATOR" -> {
+                        String mode = gateObj.has("mode")
+                                ? gateObj.get("mode").getAsString().toUpperCase()
+                                : "EQUALS";
+
+                        // Brak któregokolwiek wejścia oznacza brak wyniku.
+                        JsonElement resultElement = JsonNull.INSTANCE;
+                        boolean result = false;
+
+                        if (sL != null && sR != null) {
+                            result = switch (mode) {
+                                case "EQUALS" ->
+                                        sL.equals(sR);
+
+                                case "EQUALS_IGNORE_CASE" ->
+                                        sL.equalsIgnoreCase(sR);
+
+                                case "CONTAINS" ->
+                                        sL.contains(sR);
+
+                                case "STARTS_WITH" ->
+                                        sL.startsWith(sR);
+
+                                case "ENDS_WITH" ->
+                                        sL.endsWith(sR);
+
+                                default -> false;
+                            };
+
+                            resultElement = new JsonPrimitive(result);
+                        }
+
+                        boolean outputChanged = GateUtils.setOutputIfChanged(
+                                gateObj, resultElement
+                        );
+
+                        if (outputChanged && plugin.isDebugEnabled()) {
+                            String status = resultElement.isJsonNull()
+                                    ? "§7NO DATA"
+                                    : result ? "§aTRUE" : "§cFALSE";
+
+                            Bukkit.getConsoleSender().sendMessage(
+                                    AstraRS.DEBUG_PREFIX
+                                            + "§dSTRING_COMP §7at §e" + key
+                                            + " §7result (§6" + mode + "§7): "
+                                            + status
+                            );
+                        }
+
+                        GateUtils.syncOutput(
+                                plugin,
+                                gateObj,
+                                ctx,
+                                key,
+                                result,
+                                outputChanged
+                        );
+                    }
+
+                    case "STRING_DECODER" -> {
+                        String targetValue = gateObj.has("value")
+                                ? gateObj.get("value").getAsString()
+                                : "";
+
+                        boolean isMatch = sBack != null
+                                && sBack.equals(targetValue);
+
+                        JsonElement resultElement = sBack == null
+                                ? JsonNull.INSTANCE
+                                : new JsonPrimitive(isMatch);
+
+                        boolean outputChanged = GateUtils.setOutputIfChanged(
+                                gateObj, resultElement
+                        );
+
+                        if (outputChanged && plugin.isDebugEnabled()) {
+                            String status = sBack == null
+                                    ? "§7NO DATA"
+                                    : isMatch ? "§aMATCH" : "§cNO MATCH";
+
+                            Bukkit.getConsoleSender().sendMessage(
+                                    AstraRS.DEBUG_PREFIX
+                                            + "§dSTRING_DECODER §7at §e" + key
+                                            + " §7(target: §5\"" + targetValue
+                                            + "\"§7, received: "
+                                            + (sBack == null
+                                            ? "§7NO DATA"
+                                            : "§5\"" + sBack + "\"")
+                                            + "§7) -> " + status
+                            );
+                        }
+
+                        GateUtils.syncOutput(
+                                plugin,
+                                gateObj,
+                                ctx,
+                                key,
+                                isMatch,
+                                outputChanged
+                        );
                     }
                 }
-            }
+            });
         }
     }
 }

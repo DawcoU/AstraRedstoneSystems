@@ -1,0 +1,126 @@
+# #############################################################
+# #                                                           #
+# #          AstraRedstoneSystems - Archivo de Idioma         #
+# #                     Idioma: Español (ES)                  #
+# #                                                           #
+# #############################################################
+
+# Puedes usar códigos de color (ej. &a, &c, &l), códigos HEX, degradados y marcadores de posición como %type%, %val%, %count%.
+
+messages:
+
+
+  # --- General / Sistema ---
+  general:
+    only-players: "&c¡Este comando no está disponible desde la consola!"
+    no-permission: "&c¡No tienes permisos!"
+    reload-success: "&a¡El plugin se ha recargado correctamente!"
+
+
+  # --- Comando Principal de Puertas /gate ---
+  gate-cmd:
+    usage: "&cUso: &6/gate <Categoría> <Tipo> <Parámetro>"
+    need-channel: "&c¡Debes especificar un canal! <canal1,canal2...>"
+    provide-limit: "&c¡Por favor proporciona un límite!"
+    provide-value: "&c¡Por favor proporciona un valor!"
+    provide-text: "&c¡Por favor proporciona un texto!"
+    provide-range: "&c¡Por favor proporciona un rango (1-15)!"
+    provide-mode: "&c¡Por favor proporciona un modo!"
+    provide-sign: "&c¡Por favor proporciona un operador! (>, <, ==, !=, >=, <=)"
+    provide-string-sign: "&c¡Por favor proporciona un operador de texto! (EQUALS, EQUALS_IGNORE_CASE, CONTAINS, STARTS_WITH, ENDS_WITH, EMPTY)"
+    provide-time: "&c¡Por favor proporciona un tiempo (5t-10s)!"
+    provide-unit: "&c¡Por favor proporciona una unidad: &e't' &7(ticks) &co &e's' &7(segundos)&c!"
+    provide-delay: "&c¡Por favor proporciona un retraso (1t-10s)!"
+    provide-frequency: "&c¡Por favor proporciona una frecuencia (1t-10s)!"
+    invalid-sign: "&c¡Este no es un operador matemático válido!"
+    invalid-string-sign: "&c¡Este no es un operador de texto válido!"
+    invalid-time: "&c¡Por favor proporciona un formato válido (ej., 10s)!"
+    wrong-format: "&c¡Formato inválido! Usa: min-max (ej., 0-10)"
+    not-a-number: "&c¡Esto no es un número!"
+    negative-number: "&c¡No puedes introducir un número negativo!"
+    min-greater-than-max: "&c¡El valor mínimo no puede ser mayor que el máximo!"
+    limit-range: "&c¡El límite debe estar entre 1 y 1000!"
+    range-bounds: "&c¡El rango debe estar entre 1 y 15!"
+    repeater-ticks-range: "&c¡El retraso en ticks debe estar entre 1t y 200t (10s)!"
+    repeater-seconds-range: "&c¡El retraso en segundos debe estar entre 1s y 10s!"
+    clock-ticks-range: "&c¡La frecuencia en ticks debe estar entre 1t y 200t (10s)!"
+    clock-seconds-range: "&c¡La frecuencia en segundos debe estar entre 1s y 10s!"
+
+
+  # --- Interacción de Puertas (Colocar/Romper/Objetos) ---
+  gate:
+    prefix-item: "&4Puerta: &c"
+    received: "&aHas recibido una puerta: &e%type%"
+    placed: "&aPuerta &e%type% &acolocada &6Salida: &e%out%"
+    removed: "&c¡La puerta &6%type% &cha sido eliminada!"
+    unknown-type: "&c¡Tipo de puerta desconocido!"
+    unsupported: "&cLa puerta &6%type% &cno funcionará correctamente en este servidor"
+    power-break-deny: "&c¡Este es un bloque de energía que alimenta la salida de la puerta!"
+
+
+  # --- GUI de Edición de Puertas ---
+  gui:
+    title: "&8Editar: &f%type%"
+    saved: "&a¡Se han guardado los ajustes de la puerta!"
+    value-changed: "&aValor cambiado para la puerta &e%type% &fa: &f%val%"
+
+    status-inputs: "&eModo: &f%val% Entradas &7(Haz clic para cambiar)"
+    status-time: "&7Tiempo actual: &e%val% Ticks"
+    status-value: "&7Valor actual: &e%val%"
+    status-limit: "&7Límite actual: &e%val%"
+    status-range: "&7Rango actual: &e%val% bloques"
+    status-random: "&7Rango: &e%min% &7a &e%max%"
+    status-mode: "&7Modo actual: &e%mode%"
+
+
+  # --- Selección (Selector) ---
+  selector:
+    item-name: "&dSelector de Puertas"
+    received: "&a¡Has recibido un Selector de Puertas!"
+    pos-1: "&e¡Punto 1 establecido!"
+    pos-2: "&e¡Punto 2 establecido!"
+    both-required: "&c¡Debes seleccionar ambos puntos primero!"
+    cut: "&aÁrea cortada, se eliminaron &f%count% &cpuertas lógicas"
+
+
+  # --- Edición de Áreas (Copiar/Pegar/Girar/Deshacer/Rehacer) ---
+  clipboard:
+    copy-success: "&a¡Se copiaron &e%count% &apuertas al portapapeles!"
+    empty: "&c¡Tu portapapeles está vacío! Usa /ars copy primero"
+    paste-success: "&a¡Se pegaron con éxito &e%count% &apuertas!"
+    rotate-success: "&7Contenido del portapapeles rotado &f%degree% &7grados"
+    invalid-rotate-angle: "&c¡Ángulo inválido! Usa 90, -90 o 180"
+    undo-success: "&aÚltima acción de pegar rehecha (deshecha) (&7%count% puertas&a)"
+    nothing-to-undo: "&c¡No tienes nada que deshacer!"
+    redo-success: "&eÚltimo deshecho rehecho (&7%count% &epuertas)"
+    nothing-to-redo: "&c¡No tienes nada que rehacer!"
+
+
+  # --- Esquemas (Schematics) ---
+  schema:
+    specify-action: "&c¡Debes elegir una acción! Uso: &e/ars schematic <save/load/delete> [nombre]"
+    specify-name: "&c¡Debes especificar un nombre de esquema! Uso: &e/ars schematic <save/load/delete> [nombre]"
+    invalid-name: "&c¡El nombre del esquema contiene caracteres no válidos! Usa solo letras, números, _ y -"
+    not-found: "&cNo se encontró el archivo de esquema llamado &e%name%.json &cen el directorio del plugin"
+    corrupted: "&cEl archivo de esquema está vacío, corrupto o tiene una estructura JSON inválida"
+    file-exists: "&c¡El archivo de esquema &e%name%.json &cya existe!"
+    save-success: "&a¡Esquema &e%name% &aguardado con éxito en el disco! &7(%count% puertas)"
+    save-error: "&c¡Ocurrió un error crítico al guardar el esquema!"
+    load-success: "&a¡Esquema &e%name% &7(%count% puertas) &acargado en el portapapeles! Ejecuta el comando de pegar para colocarlo en el mundo"
+    deleted: "&aSe eliminó con éxito el esquema &e%name%.json &cde los archivos del servidor"
+    delete-error: "&c¡Ocurrió un error al eliminar el archivo &e%name%.json&c!"
+    
+  
+  # --- Sistema de Actualización ---
+  update:
+    in-progress: "&cLa comprobación de actualizaciones ya está en curso..."
+    api-error: "&cNo se pudo conectar a la API de Modrinth"
+    no-versions: "&cNo se encontraron versiones publicadas"
+    up-to-date: "&aAstraRS ya está actualizado"
+    local-newer: "&eLa versión instalada es más reciente que la última publicada en Modrinth. Actualización omitida"
+    no-files: "&cNo se encontró ningún archivo descargable para la última versión"
+    directory-error: "&cNo se pudo crear el directorio de actualización"
+    download-error: "&cNo se pudo descargar la actualización"
+    downloaded: "&aActualización de AstraRS descargada con éxito"
+    restart-required: "&eReinicia el servidor para aplicar la actualización"
+    failed: "&cOcurrió un error al buscar o descargar la actualización"

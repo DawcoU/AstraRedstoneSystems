@@ -91,7 +91,7 @@ public class GateListeners implements Listener {
                 String channel = gateObj.has("channel") ? gateObj.get("channel").getAsString() : "default";
                 lore.add("§7Channel: §f" + channel);
             }
-            case "NUMBER_GATE", "DECODER" -> {
+            case "NUMBER_SENDER", "DECODER" -> {
                 long val = gateObj.has("value") ? gateObj.get("value").getAsLong() : 0;
                 lore.add("§7Value: §f" + val);
             }
@@ -104,11 +104,19 @@ public class GateListeners implements Listener {
             case "MATH" -> {
                 String mode = gateObj.has("mode") ? gateObj.get("mode").getAsString() : "ADD";
                 String modeName = switch (mode.toUpperCase()) {
-                    case "SUB", "SUBTRACT", "-" -> "Subtract";
-                    case "MUL", "MULTIPLY", "*" -> "Multiply";
-                    case "DIV", "DIVIDE", "/" -> "Divide";
-                    case "POW", "POWER", "^" -> "Power";
-                    default -> "Add";
+                    case "SUB", "SUBTRACT", "-" -> "SUB";
+                    case "MUL", "MULTIPLY", "*", "X" -> "MUL";
+                    case "DIV", "DIVIDE", "/" -> "DIV";
+                    case "POW", "POWER", "^" -> "POW";
+                    case "MOD", "MODULO", "%" -> "MOD";
+                    case "MIN", "MINIMUM" -> "MIN";
+                    case "MAX", "MAXIMUM" -> "MAX";
+                    case "SQRT", "SQUARE ROOT" -> "SQRT";
+                    case "ROOT", "NTH_ROOT" -> "ROOT";
+                    case "AVG", "AVERAGE" -> "AVG";
+                    case "ABS", "ABSOLUTE" -> "ABS";
+                    case "HYPOT", "HYPOTENUSE" -> "HYPOT";
+                    default -> "ADD";
                 };
                 lore.add("§7Mode: §f" + modeName);
             }
@@ -130,11 +138,11 @@ public class GateListeners implements Listener {
                 int radius = gateObj.has("radius") ? gateObj.get("radius").getAsInt() : 5;
                 lore.add("§7Range: §f" + radius);
             }
-            case "CLOCK", "CLOCK_GATE", "REPEATER" -> {
+            case "CLOCK", "REPEATER" -> {
                 int interval = gateObj.has("interval") ? gateObj.get("interval").getAsInt() : 20;
                 lore.add("§7Time: §f" + interval + "t");
             }
-            case "STRING_GATE", "STRING_DECODER" -> {
+            case "STRING_SENDER", "STRING_DECODER" -> {
                 String text = gateObj.has("value") ? gateObj.get("value").getAsString() : "";
                 lore.add("§7Text: §f" + text);
             }
@@ -183,12 +191,11 @@ public class GateListeners implements Listener {
 
         // 3. Obsługa kierunków i bezpieczne pobieranie starego bloku pod spodem
         if (type.equals("CABLE_DATA")) {
-            gateObj.addProperty("current_out", String.valueOf(Long.MIN_VALUE));
             gateObj.addProperty("power", 0);
         } else {
             gateObj.addProperty("out", outFace.name());
             gateObj.addProperty("state", false);
-            gateObj.addProperty("current_out", "");
+            gateObj.add("current_out", com.google.gson.JsonNull.INSTANCE);
 
             Block target = block.getRelative(outFace);
             Block outputBlock = target.getRelative(BlockFace.DOWN);
@@ -201,8 +208,8 @@ public class GateListeners implements Listener {
             gateObj.addProperty("displayUUID", uuid);
         }
 
-        // 4. Wartości domyślne
-        if (type.matches("CLOCK|CLOCK_GATE|REPEATER")) {
+        // 4. Wartości domyślne specyficzne dla typu
+        if (type.matches("CLOCK|REPEATER")) {
             gateObj.addProperty("interval", 0);
             gateObj.addProperty("next_tick", 0);
         } else if (type.matches("SENSOR")) {
@@ -213,10 +220,16 @@ public class GateListeners implements Listener {
         } else if ("RANDOM_NUMBER".equals(type)) {
             gateObj.addProperty("min", 0);
             gateObj.addProperty("max", 10);
-        } else if (type.matches("NUMBER_GATE|CABLE_DATA|DECODER")) {
+        } else if (type.matches("NUMBER_SENDER|DECODER")) {
             gateObj.addProperty("value", 0);
-        } else if (type.matches("DISK_GATE|RAM_GATE")) {
+        } else if (type.matches("DISK|RAM")) {
             gateObj.addProperty("value", "");
+        } else if ("BATTERY".equals(type)) {
+            // Tylko bateria faktycznie potrzebuje tych pól czasowych
+            gateObj.addProperty("charge_seconds", 10);
+            gateObj.addProperty("decay_seconds", 60);
+            gateObj.addProperty("last_decay", 0);
+            gateObj.addProperty("last_charge_tick", 0);
         }
 
         // 5. Bezpieczny odczyt z Lore przedmiotu
@@ -243,7 +256,7 @@ public class GateListeners implements Listener {
                         java.util.regex.Matcher matcher = pattern.matcher(cleanLine);
                         if (matcher.find()) {
                             long val = Long.parseLong(matcher.group());
-                            if (type.equals("NUMBER_GATE") || type.equals("DECODER")) {
+                            if (type.equals("NUMBER_SENDER") || type.equals("DECODER")) {
                                 gateObj.addProperty("value", val);
                             }
                         }
@@ -258,7 +271,7 @@ public class GateListeners implements Listener {
                     }
                     else if (cleanLine.contains("Text: ") || cleanLine.contains("Tekst: ")) {
                         String textVal = cleanLine.contains("Text: ") ? cleanLine.replace("Text: ", "") : cleanLine.replace("Tekst: ", "");
-                        if (type.equals("STRING_GATE") || type.equals("STRING_DECODER")) {
+                        if (type.equals("STRING_SENDER") || type.equals("STRING_DECODER")) {
                             gateObj.addProperty("value", textVal.trim());
                         }
                     }
@@ -267,16 +280,24 @@ public class GateListeners implements Listener {
 
                         switch (type) {
                             case "MATH" -> {
-                                String modeCode = switch (rawMode) {
-                                    case "Subtract" -> "SUB";
-                                    case "Multiply" -> "MUL";
-                                    case "Divide"   -> "DIV";
-                                    case "Power"    -> "POW";
-                                    default         -> "ADD";
+                                String modeCode = switch (rawMode.toUpperCase(Locale.ROOT)) {
+                                    case "SUB", "-" -> "SUB";
+                                    case "MUL", "*" -> "MUL";
+                                    case "DIV", "/" -> "DIV";
+                                    case "POW", "^" -> "POW";
+                                    case "MOD", "%" -> "MOD";
+                                    case "MIN" -> "MIN";
+                                    case "MAX" -> "MAX";
+                                    case "SQRT" -> "SQRT";
+                                    case "ROOT" -> "ROOT";
+                                    case "AVG" -> "AVG";
+                                    case "ABS" -> "ABS";
+                                    case "HYPOT" -> "HYPOT";
+                                    default -> "ADD";
                                 };
                                 gateObj.addProperty("mode", modeCode);
                             }
-                            case "STRING_COMPARATOR" -> gateObj.addProperty("mode", rawMode.toUpperCase());
+                            case "STRING_COMPARATOR" -> gateObj.addProperty("mode", rawMode.toUpperCase(Locale.ROOT));
                             default -> gateObj.addProperty("mode", rawMode);
                         }
                     }
@@ -392,7 +413,7 @@ public class GateListeners implements Listener {
         String type = gateObj.has("type") ? gateObj.get("type").getAsString() : "";
         Player p = e.getPlayer();
 
-        if (type.matches("OR|NOR|AND|NAND|XOR|XNOR|COUNTER|CLOCK|CLOCK_GATE|REPEATER|SENSOR|NUMBER_GATE|DECODER|MATH|COMPARATOR|RANDOM_NUMBER|BATTERY")) {
+        if (type.matches("OR|NOR|AND|NAND|XOR|XNOR|COUNTER|CLOCK|REPEATER|SENSOR|NUMBER_SENDER|DECODER|MATH|COMPARATOR|RANDOM_NUMBER|BATTERY")) {
             e.setCancelled(true);
             plugin.getGateGUI().openGUI(p, locKey, gateObj, type);
         }

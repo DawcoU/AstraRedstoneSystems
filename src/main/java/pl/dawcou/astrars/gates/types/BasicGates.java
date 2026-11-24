@@ -4,21 +4,26 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import pl.dawcou.astrars.AstraRS;
 import pl.dawcou.astrars.file.GateDataManager;
-import pl.dawcou.astrars.gates.data.GateContext;
 import pl.dawcou.astrars.gates.data.GateContextFactory;
-import pl.dawcou.astrars.gates.utils.GateUtils;
 import pl.dawcou.astrars.gates.data.GateValidator;
+import pl.dawcou.astrars.gates.utils.GateUtils;
 
 import java.util.Map;
 import java.util.Set;
 
 public class BasicGates {
+
     private final AstraRS plugin;
     private final GateValidator validator;
 
-    // Statyczne zbiory do błyskawicznego sprawdzenia wywoływanego w O(1)
+    private static final Set<String> HANDLED_TYPES = Set.of(
+            "OR", "NOR", "AND", "NAND", "XOR", "XNOR",
+            "NOT", "BUFFER", "IMPLY", "NIMPLY", "MUX", "PULSER"
+    );
+
     private static final Set<String> OUT_GATES = Set.of(
-            "OR", "NOR", "AND", "NAND", "XOR", "XNOR", "NOT", "BUFFER", "IMPLY", "NIMPLY", "MUX", "PULSER"
+            "OR", "NOR", "AND", "NAND", "XOR", "XNOR",
+            "NOT", "BUFFER", "IMPLY", "NIMPLY", "MUX", "PULSER"
     );
 
     private static final Set<String> BACK_GATES = Set.of(
@@ -26,7 +31,8 @@ public class BasicGates {
     );
 
     private static final Set<String> SIDE_GATES = Set.of(
-            "OR", "NOR", "AND", "NAND", "XOR", "XNOR", "IMPLY", "NIMPLY", "MUX"
+            "OR", "NOR", "AND", "NAND", "XOR", "XNOR",
+            "IMPLY", "NIMPLY", "MUX"
     );
 
     public BasicGates(AstraRS plugin, GateValidator validator) {
@@ -34,54 +40,138 @@ public class BasicGates {
         this.validator = validator;
     }
 
+    // ============================================================
+    // GŁÓWNA PĘTLA BRAMEK LOGICZNYCH
+    // ============================================================
+
     public void runBasicGates() {
         GateDataManager manager = plugin.getGateDataManager();
         JsonObject gatesSection = manager.getGates();
+
         if (gatesSection == null) return;
 
         for (Map.Entry<String, JsonElement> entry : gatesSection.entrySet()) {
-            GateContext ctx = GateContextFactory.create(entry, validator);
-            if (ctx == null) continue;
+            GateContextFactory.createAndRun(entry, validator, plugin, ctx -> {
+                if (ctx == null) return;
 
-            // --- PARTICLE STATUSU (WEJŚCIA) ---
-            // 1. Wejścia boczne (lewo / prawo)
-            if (SIDE_GATES.contains(ctx.type())) {
-                GateUtils.spawnStatusParticle(ctx.gateBlock(), ctx.dirs().left(), ctx.pLeft());
-                GateUtils.spawnStatusParticle(ctx.gateBlock(), ctx.dirs().right(), ctx.pRight());
-            }
+                // Jeśli typ bramki nie pasuje do naszej listy — wypad z pętli
+                if (!HANDLED_TYPES.contains(ctx.type())) return;
 
-            // 2. Wejście z tyłu (dedykowane bramki LUB zwykłe bramki w trybie 3-wejściowym)
-            if (BACK_GATES.contains(ctx.type()) || (ctx.inputs() == 3)) {
-                GateUtils.spawnStatusParticle(ctx.gateBlock(), ctx.dirs().back(), ctx.pBack());
-            }
+                // ----------------------------------------------------
+                // ODCZYT WEJŚĆ
+                // ----------------------------------------------------
 
-            // LOGIKA
-            boolean newState = switch (ctx.type()) {
-                case "NOT" -> !ctx.pBack();
-                case "OR" -> (ctx.inputs() == 3) ? (ctx.pRight() || ctx.pLeft() || ctx.pBack()) : (ctx.pRight() || ctx.pLeft());
-                case "NOR" -> (ctx.inputs() == 3) ? !(ctx.pRight() || ctx.pLeft() || ctx.pBack()) : !(ctx.pRight() || ctx.pLeft());
-                case "AND" -> (ctx.inputs() == 3) ? (ctx.pRight() && ctx.pLeft() && ctx.pBack()) : (ctx.pRight() && ctx.pLeft());
-                case "NAND" -> (ctx.inputs() == 3) ? !(ctx.pRight() && ctx.pLeft() && ctx.pBack()) : !(ctx.pRight() && ctx.pLeft());
-                case "XOR" -> (ctx.inputs() == 3) ? (ctx.pRight() ^ ctx.pLeft() ^ ctx.pBack()) : (ctx.pRight() ^ ctx.pLeft());
-                case "XNOR" -> (ctx.inputs() == 3) ? (ctx.pRight() ^ ctx.pLeft()) == ctx.pBack() : (ctx.pRight() == ctx.pLeft());
-                case "IMPLY" -> !ctx.pBack() || (ctx.pRight() || ctx.pLeft());
-                case "NIMPLY" -> ctx.pBack() && !(ctx.pRight() || ctx.pLeft());
-                case "BUFFER" -> ctx.pBack();
-                case "MUX" -> ctx.pBack() ? ctx.pRight() : ctx.pLeft();
+                boolean pBack = ctx.pBack();
+                boolean pLeft = ctx.pLeft();
+                boolean pRight = ctx.pRight();
 
-                default -> ctx.currentState();
-            };
+                // ----------------------------------------------------
+                // CZĄSTECZKI STATUSU WEJŚĆ
+                // ----------------------------------------------------
 
-            // --- AKTUALIZACJA ---
-            if (newState != ctx.currentState()) {
-                GateUtils.updateOutput(plugin, ctx.key(), ctx.dirs().targetBlock(), newState);
-                ctx.json().addProperty("state", newState);
-            }
+                // Wejścia boczne: lewo i prawo.
+                if (SIDE_GATES.contains(ctx.type())) {
+                    GateUtils.spawnStatusParticle(
+                            ctx.gateBlock(),
+                            ctx.dirs().left(),
+                            pLeft
+                    );
 
-            // 3. JEDYNE I SŁUSZNE MIEJSCE NA DYMEK Z PRZODU NA BAZIE AKTUALNEGO newState
-            if (OUT_GATES.contains(ctx.type())) {
-                GateUtils.spawnStatusParticle(ctx.gateBlock(), ctx.dirs().out(), newState);
-            }
+                    GateUtils.spawnStatusParticle(
+                            ctx.gateBlock(),
+                            ctx.dirs().right(),
+                            pRight
+                    );
+                }
+
+                // Wejście tylne: dedykowane bramki lub tryb 3-wejściowy.
+                if (BACK_GATES.contains(ctx.type()) || ctx.inputs() == 3) {
+                    GateUtils.spawnStatusParticle(
+                            ctx.gateBlock(),
+                            ctx.dirs().back(),
+                            pBack
+                    );
+                }
+
+                // ----------------------------------------------------
+                // LOGIKA BRAMEK
+                // ----------------------------------------------------
+
+                boolean newState = switch (ctx.type()) {
+                    case "NOT" -> !pBack;
+
+                    case "OR" -> (ctx.inputs() == 3)
+                            ? (pRight || pLeft || pBack)
+                            : (pRight || pLeft);
+
+                    case "NOR" -> (ctx.inputs() == 3)
+                            ? !(pRight || pLeft || pBack)
+                            : !(pRight || pLeft);
+
+                    case "AND" -> (ctx.inputs() == 3)
+                            ? (pRight && pLeft && pBack)
+                            : (pRight && pLeft);
+
+                    case "NAND" -> (ctx.inputs() == 3)
+                            ? !(pRight && pLeft && pBack)
+                            : !(pRight && pLeft);
+
+                    case "XOR" -> (ctx.inputs() == 3)
+                            ? (pRight ^ pLeft ^ pBack)
+                            : (pRight ^ pLeft);
+
+                    case "XNOR" -> (ctx.inputs() == 3)
+                            ? (pRight ^ pLeft) == pBack
+                            : (pRight == pLeft);
+
+                    case "IMPLY" -> !pBack || (pRight || pLeft);
+
+                    case "NIMPLY" -> pBack && !(pRight || pLeft);
+
+                    case "BUFFER" -> pBack;
+
+                    case "MUX" -> pBack ? pRight : pLeft;
+
+                    default -> ctx.currentState();
+                };
+
+
+                // ----------------------------------------------------
+                // AKTUALIZACJA WYJŚCIA
+                // ----------------------------------------------------
+
+                JsonElement lastOut = ctx.json().get("current_out");
+                boolean outputChanged = lastOut == null
+                        || !lastOut.isJsonPrimitive()
+                        || !lastOut.getAsJsonPrimitive().isBoolean()
+                        || lastOut.getAsBoolean() != newState;
+
+                // Zapisujemy wynik logiczny w polu current_out.
+                if (outputChanged) {
+                    ctx.json().addProperty("current_out", newState);
+                }
+
+                GateUtils.syncOutput(
+                        plugin,
+                        ctx.json(),
+                        ctx,
+                        ctx.key(),
+                        newState,
+                        outputChanged
+                );
+
+                // ----------------------------------------------------
+                // CZĄSTECZKI STATUSU WYJŚCIA
+                // ----------------------------------------------------
+
+                if (OUT_GATES.contains(ctx.type())) {
+                    GateUtils.spawnStatusParticle(
+                            ctx.gateBlock(),
+                            ctx.dirs().out(),
+                            newState
+                    );
+                }
+            });
         }
     }
 }

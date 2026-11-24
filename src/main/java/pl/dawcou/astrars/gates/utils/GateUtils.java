@@ -1,16 +1,20 @@
 package pl.dawcou.astrars.gates.utils;
 
+import com.google.gson.JsonElement;
+import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
 import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
-import org.bukkit.entity.TextDisplay;
-import org.bukkit.util.Transformation;
 import pl.dawcou.astrars.AstraRS;
+import pl.dawcou.astrars.gates.data.GateContext;
 
+import java.math.BigDecimal;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 public class GateUtils {
@@ -27,97 +31,176 @@ public class GateUtils {
         DUST_PARTICLE = particle;
     }
 
-    public static int getPowerAt(Block b) {
-        if (b == null || b.getType().isAir()) {
-            return 0;
-        }
+    // ============================================================
+    // DELEGACJE NA SKRÓTY (ODŁĄCZONE DO OSOBNYCH KLAS)
+    // ============================================================
 
+    // NumberUtils delegaty
+    public static Long parseLong(JsonElement el) { return NumberUtils.parseLong(el); }
+    public static Long readLongOrNull(JsonObject j, String k) { return NumberUtils.readLongOrNull(j, k); }
+    public static long readLong(JsonObject j, String k, long f) { return NumberUtils.readLong(j, k, f); }
+    public static Double parseDouble(JsonElement el) { return NumberUtils.parseDouble(el); }
+    public static Double readDoubleOrNull(JsonObject j, String k) { return NumberUtils.readDoubleOrNull(j, k); }
+    public static double readDouble(JsonObject j, String k, double f) { return NumberUtils.readDouble(j, k, f); }
+    public static String readString(JsonObject j, String k, String f) { return NumberUtils.readString(j, k, f); }
+    public static void setLongIfChanged(JsonObject j, String k, long v) { NumberUtils.setLongIfChanged(j, k, v); }
+    public static void setNullIfChanged(JsonObject j, String k) { NumberUtils.setNullIfChanged(j, k); }
+    public static long positiveDifference(long c, long p) { return NumberUtils.positiveDifference(c, p); }
+    public static double randomDouble(double min, double max) { return NumberUtils.randomDouble(min, max); }
+    public static int compareDoubles(double l, double r) { return NumberUtils.compareDoubles(l, r); }
+
+    // BooleanUtils delegaty
+    public static boolean readBoolean(JsonObject j, String k, boolean f) { return BooleanUtils.readBoolean(j, k, f); }
+    public static void setBooleanIfChanged(JsonObject j, String k, boolean v) { BooleanUtils.setBooleanIfChanged(j, k, v); }
+
+    // DisplayUtils delegaty
+    public static String createDisplay(Location loc, String out) { return DisplayUtils.createDisplay(loc, out); }
+    public static String validateDisplay(JsonObject g, Location loc) { return DisplayUtils.validateDisplay(g, loc); }
+    public static void updateDisplayNumber(String uuid, String val) { DisplayUtils.updateDisplayNumber(uuid, val); }
+
+
+    // ============================================================
+    // OGÓLNE NARZĘDZIA SIECI I ŚWIATA REDSTONE
+    // ============================================================
+
+    public static int getPowerAt(Block b) {
+        if (b == null || b.getType().isAir()) return 0;
         Material type = b.getType();
 
         if (type == Material.REDSTONE_WIRE) {
             return ((org.bukkit.block.data.type.RedstoneWire) b.getBlockData()).getPower();
         }
-        if (type == Material.REDSTONE_BLOCK) {
-            return 15;
-        }
+        if (type == Material.REDSTONE_BLOCK) return 15;
         if (type == Material.REDSTONE_TORCH || type == Material.REDSTONE_WALL_TORCH) {
             if (b.getBlockData() instanceof org.bukkit.block.data.Lightable torch) {
                 return torch.isLit() ? 15 : 0;
             }
         }
-
-        // Levers, buttons, pressure plates, repeaters, comparators
         if (b.getBlockData() instanceof org.bukkit.block.data.Powerable powerable) {
             return powerable.isPowered() ? 15 : 0;
         }
-
-        // Return current power directly from wire/analogue states without triggering world block power recalculation
         if (b.getBlockData() instanceof org.bukkit.block.data.AnaloguePowerable analogue) {
             return analogue.getPower();
         }
-
         return 0;
     }
 
     public static String getStringFrom(Block block, AstraRS plugin) {
         String key = locToStr(block.getLocation());
         JsonObject gate = plugin.getGateDataManager().getGate(key);
-
-        if (gate == null) return "";
-
-        // 1. Sprawdzamy link (bezprzewodowy)
-        if (gate.has("link_input")) {
-            long wireless = gate.get("link_input").getAsLong();
-            if (wireless != Long.MIN_VALUE) {
-                return String.valueOf(wireless);
-            }
-        }
-
-        // 2. Sprawdzamy fizyczny (lokalny)
-        if (!gate.has("current_out")) return "";
-        String physical = gate.get("current_out").getAsString();
-
-        if (physical.isEmpty()) return "";
-
-        // Sprawdzamy, czy sygnał to nie jest flaga braku sygnału (Long.MIN_VALUE)
-        try {
-            String cleanVal = physical.replaceAll("[^0-9\\-]", "");
-
-            if (!cleanVal.isEmpty() && !cleanVal.equals("-")) {
-                long parsed = Long.parseLong(cleanVal);
-                if (parsed == Long.MIN_VALUE) {
-                    return ""; // Tylko MIN_VALUE to brak sygnału
-                }
-            }
-        } catch (NumberFormatException e) {
-            // Jeśli sygnał jest tekstem (np. dla STRING_GATE "hello"), zwracamy go po prostu
-            return physical;
-        }
-
-        return physical; // Zwraca "0" bez przeszkód
+        if (gate == null || !gate.has("current_out")) return null;
+        JsonElement output = gate.get("current_out");
+        if (output == null || output.isJsonNull() || !output.isJsonPrimitive()) return null;
+        JsonPrimitive primitive = output.getAsJsonPrimitive();
+        return primitive.isString() ? primitive.getAsString() : null;
     }
 
-    public static long getNumberFrom(Block block, AstraRS plugin) {
-        String val = getStringFrom(block, plugin);
-
-        if (val.isEmpty()) return Long.MIN_VALUE;
-
+    public static Long getNumberFrom(Block block, AstraRS plugin) {
+        String key = locToStr(block.getLocation());
+        JsonObject gate = plugin.getGateDataManager().getGate(key);
+        if (gate == null || !gate.has("current_out")) return null;
+        JsonElement output = gate.get("current_out");
+        if (output == null || output.isJsonNull() || !output.isJsonPrimitive()) return null;
+        JsonPrimitive primitive = output.getAsJsonPrimitive();
+        if (!primitive.isNumber()) return null;
         try {
-            String cleanVal = val.replaceAll("[^0-9\\-]", "");
+            return new BigDecimal(primitive.getAsString()).longValueExact();
+        } catch (NumberFormatException | ArithmeticException ignored) {
+            return null;
+        }
+    }
 
-            if (cleanVal.isEmpty() || cleanVal.equals("-")) {
-                return Long.MIN_VALUE;
+    public static Double getDoubleFrom(Block block, AstraRS plugin) {
+        String key = locToStr(block.getLocation());
+        JsonObject gate = plugin.getGateDataManager().getGate(key);
+        if (gate == null || !gate.has("current_out")) return null;
+        JsonElement output = gate.get("current_out");
+        if (output == null || output.isJsonNull() || !output.isJsonPrimitive()) return null;
+        JsonPrimitive primitive = output.getAsJsonPrimitive();
+        if (!primitive.isNumber()) return null;
+        try {
+            double value = primitive.getAsDouble();
+            return Double.isFinite(value) ? value : null;
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    public static Boolean getBooleanFrom(Block block, AstraRS plugin) {
+        String key = locToStr(block.getLocation());
+        JsonObject gate = plugin.getGateDataManager().getGate(key);
+        if (gate == null || !gate.has("current_out")) return null;
+        JsonElement output = gate.get("current_out");
+        if (output == null || output.isJsonNull() || !output.isJsonPrimitive()) return null;
+        JsonPrimitive primitive = output.getAsJsonPrimitive();
+        return primitive.isBoolean() ? primitive.getAsBoolean() : null;
+    }
+
+    public static JsonElement getDataFrom(Block block, AstraRS plugin) {
+        String key = locToStr(block.getLocation());
+        JsonObject gate = plugin.getGateDataManager().getGate(key);
+        if (gate == null || !gate.has("current_out")) return null;
+        JsonElement output = gate.get("current_out");
+        if (output == null || output.isJsonNull() || !output.isJsonPrimitive()) return null;
+        return output.deepCopy();
+    }
+
+    public static boolean isDataSignalActive(JsonElement data) {
+        if (data == null || data.isJsonNull()) {
+            return false;
+        }
+        if (data.isJsonPrimitive() && data.getAsJsonPrimitive().isBoolean()) {
+            return data.getAsBoolean();
+        }
+        return true;
+    }
+
+    public static JsonElement outputOrNull(JsonElement value) {
+        return value == null ? JsonNull.INSTANCE : value.deepCopy();
+    }
+
+    public static boolean areJsonElementsEqual(JsonElement e1, JsonElement e2) {
+        boolean n1 = (e1 == null || e1.isJsonNull());
+        boolean n2 = (e2 == null || e2.isJsonNull());
+        if (n1 || n2) return n1 && n2;
+
+        if (!e1.isJsonPrimitive() || !e2.isJsonPrimitive()) {
+            return e1.equals(e2);
+        }
+
+        JsonPrimitive p1 = e1.getAsJsonPrimitive();
+        JsonPrimitive p2 = e2.getAsJsonPrimitive();
+
+        if (p1.isBoolean() && p2.isBoolean()) return p1.getAsBoolean() == p2.getAsBoolean();
+        if (p1.isString() && p2.isString()) return p1.getAsString().equals(p2.getAsString());
+
+        if (p1.isNumber() && p2.isNumber()) {
+            try {
+                return new BigDecimal(p1.getAsString()).compareTo(new BigDecimal(p2.getAsString())) == 0;
+            } catch (Exception e) {
+                return p1.getAsString().equals(p2.getAsString());
             }
+        }
+        return p1.equals(p2);
+    }
 
-            return Long.parseLong(cleanVal);
-        } catch (NumberFormatException e) {
-            return Long.MIN_VALUE;
+    public static boolean setOutputIfChanged(JsonObject gate, JsonElement value) {
+        JsonElement previous = gate.get("current_out");
+        JsonElement output = outputOrNull(value);
+        if (Objects.equals(previous, output)) return false;
+        gate.add("current_out", output);
+        return true;
+    }
+
+    public static void syncOutput(AstraRS plugin, JsonObject gate, GateContext ctx, String key, boolean state, boolean outputChanged) {
+        if (outputChanged || state != ctx.currentState()) {
+            gate.addProperty("state", state);
+            updateOutput(plugin, key, ctx.dirs().targetBlock(), state);
         }
     }
 
     public static BlockFace rotate90(BlockFace f) {
         return switch (f) {
-            case NORTH -> BlockFace.EAST;
             case EAST -> BlockFace.SOUTH;
             case SOUTH -> BlockFace.WEST;
             case WEST -> BlockFace.NORTH;
@@ -151,86 +234,9 @@ public class GateUtils {
         try {
             Location loc = gate.getLocation().add(0.5, 0.5, 0.5);
             loc.add(face.getDirection().multiply(0.51));
-
             Color color = active ? Color.LIME : Color.RED;
             Particle.DustOptions dust = new Particle.DustOptions(color, 1.4F);
-
             gate.getWorld().spawnParticle(DUST_PARTICLE, loc, 3, 0, 0, 0, 0, dust);
-        } catch (Exception ignored) {}
-    }
-
-    public static String createDisplay(Location blockLoc, String outName) {
-        World world = blockLoc.getWorld();
-        if (world == null) return "";
-
-        Location displayLoc = blockLoc.clone().add(0.5, 2.0, 0.5);
-
-        switch (outName.toUpperCase()) {
-            case "NORTH" -> displayLoc.add(0, 0, -2.0);
-            case "SOUTH" -> displayLoc.add(0, 0, 2.0);
-            case "EAST"  -> displayLoc.add(2.0, 0, 0);
-            case "WEST"  -> displayLoc.add(-2.0, 0, 0);
-        }
-
-        TextDisplay textDisplay = world.spawn(displayLoc, TextDisplay.class);
-
-        textDisplay.setBackgroundColor(Color.fromARGB(0, 0, 0, 0));
-        textDisplay.setShadowed(false);
-        textDisplay.setAlignment(TextDisplay.TextAlignment.CENTER);
-        textDisplay.setBillboard(TextDisplay.Billboard.CENTER);
-
-        Transformation transformation = textDisplay.getTransformation();
-        transformation.getScale().set(4f, 4f, 4f);
-        textDisplay.setTransformation(transformation);
-
-        return textDisplay.getUniqueId().toString();
-    }
-
-    public static String validateDisplay(JsonObject gate, Location gateLoc) {
-        if (gate == null) return "";
-
-        String uuidStr = gate.has("displayUUID") ? gate.get("displayUUID").getAsString() : null;
-        String outName = gate.has("out") ? gate.get("out").getAsString() : "NORTH";
-
-        // Obliczamy lokalizację do szybkiego sprawdzenia chunku
-        Location displayLoc = gateLoc.clone().add(0.5, 2.0, 0.5);
-        switch (outName.toUpperCase()) {
-            case "NORTH" -> displayLoc.add(0, 0, -2.0);
-            case "SOUTH" -> displayLoc.add(0, 0, 2.0);
-            case "EAST"  -> displayLoc.add(2.0, 0, 0);
-            case "WEST"  -> displayLoc.add(-2.0, 0, 0);
-        }
-
-        // Blokada anty-lagowa: jeśli chunk jest niezaładowany, nie dotykamy encji
-        if (!displayLoc.getChunk().isLoaded()) {
-            return uuidStr != null ? uuidStr : "";
-        }
-
-        // Sprawdzamy czy istnieje
-        try {
-            if (uuidStr != null && !uuidStr.isEmpty()) {
-                Entity entity = Bukkit.getEntity(UUID.fromString(uuidStr));
-
-                if (entity instanceof TextDisplay) {
-                    return uuidStr;
-                }
-            }
-        } catch (Exception ignored) {}
-
-        // Jeśli chunk jest załadowany, ale nie ma hologramu -> tworzymy od nowa
-        return createDisplay(gateLoc, outName);
-    }
-
-    public static void updateDisplayNumber(String uuidStr, String value) {
-        if (uuidStr == null || uuidStr.isEmpty()) return;
-
-        try {
-            UUID uuid = UUID.fromString(uuidStr);
-            Entity entity = Bukkit.getEntity(uuid);
-
-            if (entity instanceof TextDisplay display) {
-                display.setText((value));
-            }
         } catch (Exception ignored) {}
     }
 
@@ -238,16 +244,13 @@ public class GateUtils {
         removeGate(plugin, loc, true);
     }
 
-    // Główna logika z przełącznikiem modifyBlock
     public static void removeGate(AstraRS plugin, Location loc, boolean modifyBlock) {
         String locStr = locToStr(loc);
         JsonObject gatesSection = plugin.getGateDataManager().getGates();
-
         if (gatesSection == null || !gatesSection.has(locStr)) return;
 
         JsonObject gateObj = gatesSection.getAsJsonObject(locStr);
         String type = gateObj.has("type") ? gateObj.get("type").getAsString() : "UNKNOWN";
-
         String dirName = gateObj.has("out") ? gateObj.get("out").getAsString() : "NORTH";
         BlockFace faceOut = BlockFace.valueOf(dirName);
 
@@ -258,18 +261,16 @@ public class GateUtils {
             }
         }
 
-        // Cleanup dla hologramów DISPLAY
         if ("DISPLAY".equals(type)) {
             String uuidStr = gateObj.has("displayUUID") ? gateObj.get("displayUUID").getAsString() : null;
             if (uuidStr != null && !uuidStr.isEmpty()) {
                 try {
-                    org.bukkit.entity.Entity entity = org.bukkit.Bukkit.getEntity(java.util.UUID.fromString(uuidStr));
+                    Entity entity = Bukkit.getEntity(UUID.fromString(uuidStr));
                     if (entity != null) entity.remove();
                 } catch (Exception ignored) {}
             }
         }
 
-        // Zmieniamy blok w AIR tylko wtedy, gdy NIE wywołujemy tego z eventu niszczenia!
         if (modifyBlock) {
             loc.getBlock().setType(Material.AIR);
         }
@@ -280,11 +281,10 @@ public class GateUtils {
 
     public static boolean isGateOutputBlock(AstraRS plugin, Location loc) {
         if (loc == null || loc.getWorld() == null) return false;
-
         JsonObject gates = plugin.getGateDataManager().getGates();
         if (gates == null) return false;
 
-        for (Map.Entry<String, com.google.gson.JsonElement> entry : gates.entrySet()) {
+        for (Map.Entry<String, JsonElement> entry : gates.entrySet()) {
             if (!entry.getValue().isJsonObject()) continue;
             JsonObject gateObj = entry.getValue().getAsJsonObject();
 
@@ -303,22 +303,14 @@ public class GateUtils {
             Block targetBlock = gateBlock.getRelative(outFace);
 
             if (targetBlock.getLocation().equals(loc)) {
-                // Jeśli sam blok bramki zniknął z świata (jest AIR), to NIE chronimy pochodni
-                if (gateBlock.getType().isAir()) {
-                    return false;
-                }
-                return true;
+                return !gateBlock.getType().isAir();
             }
         }
         return false;
     }
 
-    // ----------------------------------------------------
-    // Update gate output state using a Wall Torch (LIT / UNLIT)
-    // ----------------------------------------------------
     public static void updateOutput(AstraRS plugin, String key, Block target, boolean p) {
         if (target == null) return;
-
         JsonObject gate = plugin.getGateDataManager().getGate(key);
         if (gate == null) return;
 
@@ -333,24 +325,19 @@ public class GateUtils {
             outFace = BlockFace.NORTH;
         }
 
-        // 1. Sprawdzamy aktualny stan świecenia pochodni
         boolean currentLit = false;
         if (target.getType() == Material.REDSTONE_WALL_TORCH && target.getBlockData() instanceof org.bukkit.block.data.type.RedstoneWallTorch torch) {
             currentLit = torch.isLit();
         }
 
-        // 2. Nie zmieniamy gotowej pochodni ani nie nadpisujemy innych bloków
         if (target.getType() == Material.REDSTONE_WALL_TORCH) {
             if (currentLit == p) return;
         } else if (!target.getType().isAir()) {
             return;
         }
 
-        // 3. Tworzymy całkowicie nowy BlockData z wymaganym stanem (LIT = p)
         String blockDataString = "minecraft:redstone_wall_torch[facing=" + outFace.name().toLowerCase() + ",lit=" + p + "]";
         org.bukkit.block.data.BlockData newData = org.bukkit.Bukkit.createBlockData(blockDataString);
-
-        // 4. Ustawiamy nowy BlockData z flagą applyPhysics = true
         target.setBlockData(newData, true);
     }
 }

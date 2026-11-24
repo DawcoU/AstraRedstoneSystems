@@ -4,6 +4,7 @@ main: pl.dawcou.astrars.AstraRS
 api-version: '1.18'
 load: POSTWORLD
 author: DawcoU
+folia-supported: true
 
 commands:
   bramka:
@@ -16,10 +17,10 @@ permissions:
     description: Pozwala używać komendy /bramka
     default: op
   astrars.admin:
-    description: Pozwala używać komendy /alg link
+    description: Pozwala używać komend admina
     default: op
   astrars.update:
-    description: Wyświetla powiadomenia o nowej wersji
+    description: Wyświetla powiadomienia o nowej wersji
     default: op
   astrars.reload:
     description: Pozwala używać komendy /ars reload

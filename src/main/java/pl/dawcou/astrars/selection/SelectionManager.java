@@ -18,11 +18,6 @@ import org.bukkit.block.sign.Side;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.Listener;
-import org.bukkit.event.block.Action;
-import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -36,7 +31,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.*;
 
-public class SelectionManager implements Listener {
+public class SelectionManager {
 
     private final AstraRS plugin;
     private final GateDataManager dataManager;
@@ -45,23 +40,18 @@ public class SelectionManager implements Listener {
     private final Gson gson = new GsonBuilder().setPrettyPrinting().create();
 
     // ----------------------------------------------------
-    // Klasa pomocnicza do trzymania stanu przed zmianami
-    // ----------------------------------------------------
-    private static class BlockStateBackup {
-        private final Location location;
-        private final BlockData blockData;
-        private final String[] frontSignLines;
-        private final String[] backSignLines;
-        private final JsonObject gateDataSnapshot;
-
-        public BlockStateBackup(Location location, BlockData blockData, String[] frontSignLines, String[] backSignLines, JsonObject gateDataSnapshot) {
-            this.location = location;
-            this.blockData = blockData.clone();
-            this.frontSignLines = frontSignLines;
-            this.backSignLines = backSignLines;
-            this.gateDataSnapshot = gateDataSnapshot;
+        // Klasa pomocnicza do trzymania stanu przed zmianami
+        // ----------------------------------------------------
+        private record BlockStateBackup(Location location, BlockData blockData, String[] frontSignLines,
+                                        String[] backSignLines, JsonObject gateDataSnapshot) {
+            private BlockStateBackup(Location location, BlockData blockData, String[] frontSignLines, String[] backSignLines, JsonObject gateDataSnapshot) {
+                this.location = location;
+                this.blockData = blockData.clone();
+                this.frontSignLines = frontSignLines;
+                this.backSignLines = backSignLines;
+                this.gateDataSnapshot = gateDataSnapshot;
+            }
         }
-    }
 
     private final Map<UUID, LinkedList<List<BlockStateBackup>>> pasteHistory = new HashMap<>();
     private final Map<UUID, LinkedList<List<BlockStateBackup>>> redoHistory = new HashMap<>();
@@ -179,7 +169,7 @@ public class SelectionManager implements Listener {
                 langName = "&dSelektor Bramek";
             }
 
-            meta.setDisplayName(org.bukkit.ChatColor.translateAlternateColorCodes('&', langName));
+            meta.setDisplayName(langName);
 
             org.bukkit.NamespacedKey key = new org.bukkit.NamespacedKey(plugin, "item_type");
             meta.getPersistentDataContainer().set(key, org.bukkit.persistence.PersistentDataType.STRING, "gate_selector");
@@ -292,7 +282,7 @@ public class SelectionManager implements Listener {
                         }
 
                         copyOfData.addProperty("state", false);
-                        copyOfData.addProperty("current_out", 0);
+                        copyOfData.add("current_out", com.google.gson.JsonNull.INSTANCE);
                         copyOfData.addProperty("power", 0);
                         copyOfData.addProperty("last_decay", 0);
                         copyOfData.addProperty("last_charge_tick", 0);
@@ -535,13 +525,9 @@ public class SelectionManager implements Listener {
 
             try (FileWriter writer = new FileWriter(schemaFile)) {
                 gson.toJson(rootJson, writer);
-                plugin.getSchedulerManager().runSync(() -> {
-                    player.sendMessage(plugin.getLanguageManager().getWithPrefix("schema.save-success").replace("%name%", schemaName).replace("%count%", String.valueOf(gatesCount)));
-                });
+                plugin.getSchedulerManager().runSync(() -> player.sendMessage(plugin.getLanguageManager().getWithPrefix("schema.save-success").replace("%name%", schemaName).replace("%count%", String.valueOf(gatesCount))));
             } catch (IOException e) {
-                plugin.getSchedulerManager().runSync(() -> {
-                    player.sendMessage(plugin.getLanguageManager().getWithPrefix("schema.save-error"));
-                });
+                plugin.getSchedulerManager().runSync(() -> player.sendMessage(plugin.getLanguageManager().getWithPrefix("schema.save-error")));
                 e.printStackTrace();
             }
         });
@@ -612,72 +598,31 @@ public class SelectionManager implements Listener {
             File schemaFile = new File(schematicsDir, schemaName.toLowerCase() + ".json");
 
             if (!schemaFile.exists()) {
-                plugin.getSchedulerManager().runSync(() -> {
-                    player.sendMessage(plugin.getLanguageManager().getWithPrefix("schema.not-found").replace("%name%", schemaName));
-                });
+                plugin.getSchedulerManager().runSync(() -> player.sendMessage(plugin.getLanguageManager().getWithPrefix("schema.not-found").replace("%name%", schemaName)));
                 return;
             }
 
             if (schemaFile.delete()) {
-                plugin.getSchedulerManager().runSync(() -> {
-                    player.sendMessage(plugin.getLanguageManager().getWithPrefix("schema.deleted").replace("%name%", schemaName));
-                });
+                plugin.getSchedulerManager().runSync(() -> player.sendMessage(plugin.getLanguageManager().getWithPrefix("schema.deleted").replace("%name%", schemaName)));
             } else {
-                plugin.getSchedulerManager().runSync(() -> {
-                    player.sendMessage(plugin.getLanguageManager().getWithPrefix("schema.delete-error").replace("%name%", schemaName));
-                });
+                plugin.getSchedulerManager().runSync(() -> player.sendMessage(plugin.getLanguageManager().getWithPrefix("schema.delete-error").replace("%name%", schemaName)));
             }
         });
     }
 
-    @EventHandler
-    public void onInteract(PlayerInteractEvent event) {
-        Player player = event.getPlayer();
-        ItemStack item = event.getItem();
-
-        if (item == null || !item.hasItemMeta()) return;
-
-        ItemMeta currentMeta = item.getItemMeta();
-        if (currentMeta == null) return;
-
-        org.bukkit.NamespacedKey key = new org.bukkit.NamespacedKey(plugin, "item_type");
-        if (!currentMeta.getPersistentDataContainer().has(key, org.bukkit.persistence.PersistentDataType.STRING)) return;
-
-        String itemType = currentMeta.getPersistentDataContainer().get(key, org.bukkit.persistence.PersistentDataType.STRING);
-        if (!"gate_selector".equals(itemType)) return;
-
-        if (!player.hasPermission("astrars.admin")) {
-            player.sendMessage(plugin.getLanguageManager().getWithPrefix("general.no-permission"));
-            return;
-        }
-
-        if (event.getClickedBlock() == null) return;
-
-        event.setCancelled(true);
-
+    public void setPos1(Player player, Location loc) {
         UUID uuid = player.getUniqueId();
-        Location clickedLoc = event.getClickedBlock().getLocation();
-
-        if (!selections.containsKey(uuid)) selections.put(uuid, new Location[2]);
-        Location[] playerSelections = selections.get(uuid);
-
-        if (event.getAction() == Action.LEFT_CLICK_BLOCK) {
-            if (playerSelections[0] == null || !playerSelections[0].equals(clickedLoc)) {
-                playerSelections[0] = clickedLoc;
-                player.sendMessage(plugin.getLanguageManager().getWithPrefix("selector.pos-1"));
-            }
-        } else if (event.getAction() == Action.RIGHT_CLICK_BLOCK) {
-            if (playerSelections[1] == null || !playerSelections[1].equals(clickedLoc)) {
-                playerSelections[1] = clickedLoc;
-                player.sendMessage(plugin.getLanguageManager().getWithPrefix("selector.pos-2"));
-            }
-        }
+        selections.computeIfAbsent(uuid, k -> new Location[2])[0] = loc;
+        player.sendMessage(plugin.getLanguageManager().getWithPrefix("selector.pos-1"));
     }
 
-    @EventHandler
-    public void onQuit(PlayerQuitEvent event) {
-        UUID uuid = event.getPlayer().getUniqueId();
+    public void setPos2(Player player, Location loc) {
+        UUID uuid = player.getUniqueId();
+        selections.computeIfAbsent(uuid, k -> new Location[2])[1] = loc;
+        player.sendMessage(plugin.getLanguageManager().getWithPrefix("selector.pos-2"));
+    }
+
+    public void clearPlayer(UUID uuid) {
         selections.remove(uuid);
-        clipboard.remove(uuid);
     }
 }

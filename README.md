@@ -3,28 +3,39 @@
 
 Created and maintained with 💻 from Poland by DawcoU 🇵🇱
 
-AstraRedstoneSystems is a powerful tool for technical players and map makers, allowing you to create complex Redstone mechanisms using dedicated logic blocks. For newer Minecraft versions (1.18 - 26.2+).
+AstraRedstoneSystems is a powerful tool for technical players and map makers, allowing you to create complex Redstone mechanisms using dedicated logic blocks. For newer Minecraft versions (1.18 - 26.3+).
 Developed in Java 17 and leveraging the Paper API for maximum efficiency, it is the perfect choice for Survival, Technical, and Mini-Game servers. 🚀🎮
 
 ⭐ AstraRedstoneSystems supports:
-- Paper
-- Purpur
-- Arclight (supported, but not recommended)
-- Spigot (supported, but not recommended)
 
-🚰⚠️ Spigot is supported, but it is not the recommended platform.
+* Paper 📄
+* Purpur 🟪
+* Folia 🍃
+* Arclight ⚡ (supported, but not recommended)
+* Spigot 🚰 (supported, but not recommended)
+
+⚠️ Spigot is supported, but it is not the recommended platform.
 Some features may behave differently or cause compatibility issues.
 Paper or its forks are strongly recommended for the best experience.
 
 ---
 
 ### 🚀 Key Features
-* **Core Logic Gates:** Includes all basic gates like **NOT, AND, OR, XOR, NAND, NOR, XNOR**. 🧩
-* **Data Processing:** Advanced gates for math, variables, and comparisons. 🔢
-* **Memory & Timing:** RS-Latch, T-Flip-Flop, and enhanced repeaters with delays up to several seconds. ⏱️
-* **Long-Range Sensing:** Motion sensors that work at a distance. 📡
-* **Multi-input gates:** Basic logic gates (e.g., AND, XOR, OR) can have 2-3 inputs 📥🚪🚪
-* **Convenient Gate Configuration:** Easily edit gate settings through an intuitive GUI. 🖥️
+- **Core Logic Gates:** Includes all basic gates like **NOT, AND, OR, XOR, NAND, NOR, XNOR**. 🧩
+- **Data Processing:** Advanced gates for math, variables, and comparisons. 🔢
+- **Memory & Timing:** RS-Latch, T-Flip-Flop, and enhanced repeaters with delays up to several seconds. ⏱️
+- **Long-Range Sensing:** Motion sensors that work at a distance. 📡
+- **Multi-input gates:** Basic logic gates (e.g., AND, XOR, OR) can have 2-3 inputs 📥🚪🚪
+- **Convenient Gate Configuration:** Easily edit gate settings through an intuitive GUI. 🖥️
+
+---
+
+### 💡 Data Types & Universal Compatibility
+AstraRedstoneSystems operates on distinct data types: **number**, **boolean**, and **string**.
+- **The Data Cable (`CABLE_DATA`)** acts as a universal highway, transferring any data type seamlessly without mixing them up.
+- **Binary/Redstone Output Propagation:** **Every single binary gate (such as those from the Logic, Memory, and Time categories, or any block that outputs a standard Redstone signal)** **automatically transmits its state as a boolean (`true`/`false` or `1`/`0`) directly onto connected Data Cables** for other advanced blocks to use.
+- **Alternative Redstone Input:** Conversely, any block that normally expects a standard Redstone power source can alternatively receive and interpret a boolean data signal coming directly from a Data Cable as an ON/OFF state!
+- *Note:* Specialized processing gates (like **MATH**) strictly require valid numerical data and will reject raw string or boolean inputs if passed directly into their calculation slots.
 
 ---
 
@@ -34,19 +45,19 @@ Paper or its forks are strongly recommended for the best experience.
 |:----------------------------------|:----------------------------------------------------------------|:---------------------------|
 | `/gate <category> <type>`         | Receive a specific logic gate block 🧩                          | `astrars.gates.<category>` |
 | `/gate <category> <type> <param>` | Receive a gate with parameter (e.g. `DECODER 5`) ⚙️             | `astrars.gates.<category>` |
-| `/ars help`                       | Displays the plugin help menu ❓                                 | *None*                     |
-| `/ars info`                       | Displays information about author, version, and license ℹ️      | *None*                     |
+| `/ars help`                       | Displays the plugin help menu ❓                                | *None*                     |
+| `/ars info`                       | Displays information about author, version, and license ℹ️       | *None*                     |
 | `/ars reload`                     | Reloads configuration and language files ⚙️                     | `astrars.reload`           |
 | `/ars selector`                   | Gives the selection tool wand 🪄                                | `astrars.admin`            |
 | `/ars cut`                        | Cuts the selected circuit area into the clipboard ✂️            | `astrars.admin`            |
 | `/ars copy`                       | Copies the selected circuit area to the clipboard 📋            | `astrars.admin`            |
 | `/ars paste`                      | Pastes the copied circuit from clipboard at current position 📌 | `astrars.admin`            |
-| `/ars undo`                       | Reverts the last paste action ↩️                                | `astrars.admin`            |
-| `/ars redo`                       | Restores the previously undone paste action ↪️                  | `astrars.admin`            |
+| `/ars undo`                       | Reverts the last paste action ↩️                                 | `astrars.admin`            |
+| `/ars redo`                       | Restores the previously undone paste action ↪️                   | `astrars.admin`            |
 | `/ars rotate <90 \| -90 \| 180>`  | Rotates the copied circuit in clipboard by specified degrees 🔄 | `astrars.admin`            |
 | `/ars schematic save <name>`      | Saves the current clipboard contents to a schematic file 💾     | `astrars.admin`            |
 | `/ars schematic load <name>`      | Loads a schematic file into the clipboard 📂                    | `astrars.admin`            |
-| `/ars schematic delete <name>`    | Deletes a saved schematic file 🗑️                              | `astrars.admin`            |
+| `/ars schematic delete <name>`    | Deletes a saved schematic file 🗑️                               | `astrars.admin`            |
 
 ---
 
@@ -54,59 +65,60 @@ Paper or its forks are strongly recommended for the best experience.
 
 All blocks have a predefined output direction (Front) based on where you look during placement. Inputs come from the Back, Left, or Right sides.
 
-#### ⚙️ 1. Logic Category (`/bramka logic <type>`)
-* **NOT** 🔴: Inverts the input signal from the back.
-* **NOR** 🔴: Output ON only if all inputs sides are OFF.
-* **AND** 🟡: Output ON only if both side inputs are ON.
-* **OR** 🟡: Outputs ON if at least one input (Back or Sides) is ON.
-* **BUFFER** 🟡: Isolates and passes the signal from the back forward.
-* **PULSER** 🟡: Monostable circuit. Detects the rising edge from the back and triggers a clean **1-tick pulse** output, then instantly shuts down.
-* **NAND** 🟠: Inverted AND. Output OFF only if both sides are ON.
-* **XNOR** 🟠: Output ON if both side inputs are identical (both ON or both OFF).
-* **NIMPLY** 🟠: NOT IMPLY. Output ON only if Sides are OFF.
-* **XOR** 🟢: Exclusive OR. Output ON if side inputs are different.
-* **IMPLY** 🟢: Output OFF only if Back is ON and Sides are OFF.
-* **MUX** 🟢: Multiplexer. Passes the signal from the left or right side, depending on the status of the rear input. If the rear input is OFF, it takes the signal from the left side, and if ON, it takes the signal from the right side.
+1. #### ⚙️ Logic Category (`/gate logic <type>`)
+- **NOT** 🔴: Inverts the input signal from the back.
+- **NOR** 🔴: Output ON only if all inputs sides are OFF.
+- **AND** 🟡: Output ON only if both side inputs are ON.
+- **OR** 🟡: Outputs ON if at least one input (Back or Sides) is ON.
+- **BUFFER** 🟡: Isolates and passes the signal from the back forward.
+- **PULSER** 🟡: Monostable circuit. Detects the rising edge from the back and triggers a clean **1-tick pulse** output, then instantly shuts down.
+- **NAND** 🟠: Inverted AND. Output OFF only if both sides are ON.
+- **XNOR** 🟠: Output ON if both side inputs are identical (both ON or both OFF).
+- **NIMPLY** 🟠: NOT IMPLY. Output ON only if Sides are OFF.
+- **XOR** 🟢: Exclusive OR. Output ON if side inputs are different.
+- **IMPLY** 🟢: Output OFF only if Back is ON and Sides are OFF.
+- **MUX** 🟢: Multiplexer. Passes the signal from the left or right side, depending on the status of the rear input. If the rear input is OFF, it takes the signal from the left side, and if ON, it takes the signal from the right side.
 
-#### 💾 2. Memory Category (`/bramka memory <type>`)
-* **LATCH** 🔵: RS-Latch memory cell. Set input on one right side and Reset on the left side.
-* **TFF** 🔷: Toggle Flip-Flop. Changes its output state (Toggles ON/OFF) every time it receives a short pulse from the back.
-* **MEMORY_CELL** 🟦: It stores the binary signal at the back, takes the redstone signal at the right input, writes it to the middle of the gate and at the left input reads it and turns on the output.
+#### 💾 2. Memory Category (`/gate memory <type>`)
+- **LATCH** 🔵: RS-Latch memory cell. Set input on one right side and Reset on the left side.
+- **TFF** 🔷: Toggle Flip-Flop. Changes its output state (Toggles ON/OFF) every time it receives a short pulse from the back.
+- **MEMORY_CELL** 🟦: It stores the binary signal at the back, takes the redstone signal at the right input, writes it to the middle of the gate and at the left input reads it and turns on the output.
 
-#### 🔢 3. Numbers Category (`/bramka number <type>`)
-* **MATH** 🟦: Core calculator block. Takes numbers from Left and Right inputs, performs actions (`ADD`, `SUB`, `MUL`, `DIV`, `POW`), and sends the result forward.
-* **DECIMAL_ACCUMULATOR** 🟦: Accumulates digits to form larger numbers (e.g., typing 1 then 2 creates 12). Resets immediately on side pulse.
-* **COUNTER** ⬜: Increases/decreases its internal stored number based on side inputs.
-* **COMPARATOR** 🔲: Compares two numbers from Left and Right sides. Supports `==`, `>`, `<`, `>=`, `<=`, `!=`. Outputs a redstone signal if true.
-* **DECODER** 🔲: Outputs a Redstone signal if the incoming number from the back matches the preset target parameter.
-* **RANDOM_BOOLEAN** 🔵: Generates a random true/false state when triggered.
-* **RANDOM_NUMBER** 🔵: Generates a random number within a specified range.
-* **NUMBER_GATE** 🟤: Constant provider. Outputs a preconfigured number when powered from the back.
-* **BOOLEAN_GATE** 🟤: Converts Redstone to Data. Outputs `1` if powered, and `0` if unpowered.
+#### 🔢 3. Numbers Category (`/gate number <type>`)
+- **MATH** 🟦: Core calculator block. Takes numbers from Left and Right inputs, performs actions (`ADD`, `SUB`, `MUL`, `DIV`, `POW`, `MOD`, `MIN`, `MAX`, `SQRT`, `ROOT`, `AVG`, `ABS`, `HYPOT`), and sends the result forward.
+- **DECIMAL_ACCUMULATOR** 🟦: Accumulates digits to form larger numbers (e.g., typing 1 then 2 creates 12). Resets immediately on side pulse.
+- **COUNTER** ⬜: Increases/decreases its internal stored number based on side inputs.
+- **COMPARATOR** 🔲: Compares two numbers from Left and Right sides. Supports `==`, `>`, `<`, `>=`, `<=`, `!=`. Outputs a redstone signal if true.
+- **DECODER** 🔲: Outputs a Redstone signal if the incoming number from the back matches the preset target parameter.
+- **RANDOM_NUMBER** 🔵: Generates a random number within a specified range.
+- **NUMBER_SENDER** 🟤: Constant provider. Outputs a preconfigured number when powered from the back.
 
-#### 🔤 4. String Category (`/bramka string <type>`)
-* **STRING_COMPARATOR** 🔲: Compares two text strings from the sides.
-* **STRING_DECODER** 🔲: Outputs a Redstone signal if the incoming text matches the decoder's text parameter.
-* **STRING_GATE** 🟤: Constant text provider. Outputs a preset piece of text when powered.
+#### 🔲 4. Boolean Category (`/gate boolean <type>`)
+- **RANDOM_BOOLEAN** 🔵: Generates a random true/false state when triggered.
+- **BOOLEAN_SENDER** 🟤: Converts Redstone to Data. Outputs `true` if powered, and `false` if unpowered.
 
-#### 📊 5. Data Category (`/bramka data <type>`)
-* **CABLE_DATA** ⚫: The universal data highway. Transfers text and numbers between data blocks without mixing them up with normal Redstone. Includes anti-echo protection!
-* **DISPLAY** ⬜: Text hologram display. Renders any incoming string/number from the back dynamically in the air.
-* **TRANSISTOR** 🔴: Data valve. Passes data from the back to the front unless it is blocked by a side Redstone signal.
-* **DISK_GATE (Formerly VARIABLE_GATE)** 🔷: The fixed String/Number memory cell on the back takes and stores incoming text or number and the sides are used to reset the cell.
-* **RAM_GATE** 🟢: Volatile memory cell works the same as DISK_GATE but requires a constant redstone signal from the right side to store and hold the current value and the left side resets it.
-* **BATTERY** 🟠: Energy storage cell. Charges when powered from the back and slowly decays over time. Outputs its current status as a percentage (e.g., `85%`).
-* **DATA_DETECTOR** 🟢: Data presence sensor. Listens for signals from the back and turns ON its output only when valid data is received (such as text or a number). Remains OFF if the input is empty or has no data.
+#### 🔤 5. String Category (`/gate string <type>`)
+- **STRING_COMPARATOR** 🔲: Compares two text strings from the sides.
+- **STRING_DECODER** 🔲: Outputs a Redstone signal if the incoming text matches the decoder's text parameter.
+- **STRING_SENDER** 🟤: Constant text provider. Outputs a preset piece of text when powered.
 
-#### 📡 6. Space (Wireless) Category (`/bramka space <type>`)
-* **SENDER** 🟪: Bluetooth transmitter. Reads text/numbers or standard Redstone signals from the back and broadcasts them wirelessly to a specific channel.
-* **RECEIVER** 🟪: Bluetooth receiver. Tunes into a channel, captures the transmitted data string or Redstone signal, and outputs it forward.
-* **SENSOR** 🟥: Motion radar. Scans a configured radius and outputs a Redstone signal if a living entity is detected nearby.
+#### 📊 6. Data Category (`/gate data <type>`)
+- **CABLE_DATA** ⚫: The universal data highway. Transfers text and numbers between data blocks without mixing them up with normal Redstone. Includes anti-echo protection!
+- **DISPLAY** ⬜: Text hologram display. Renders any incoming string/number from the back dynamically in the air.
+- **TRANSISTOR** 🔴: Data valve. Passes data from the back to the front unless it is blocked by a side Redstone signal.
+- **DISK** 🔷: The fixed String/Number memory cell on the back takes and stores incoming text or number and the sides are used to reset the cell.
+- **RAM** 🟢: Volatile memory cell works the same as DISK but requires a constant redstone signal from the right side to store and hold the current value and the left side resets it.
+- **BATTERY** 🟠: Energy storage cell. Charges when powered from the back and slowly decays over time. Outputs its current status as a percentage (e.g., `85%`).
+- **DATA_DETECTOR** 🟢: Data presence sensor. Listens for signals from the back and turns ON its output only when valid data is received (such as text or a number). Remains OFF if the input is empty or has no data.
 
-#### ⏱️ 7. Time Category (`/bramka time <type>`)
-* **CLOCK** 🟩: Automatic clock generator. Constantly toggles its output based on a configured interval.
-* **CLOCK_GATE** 🟢: Gated clock. Toggles its output only when the back input is actively powered.
-* **REPEATER** 🟡: Advanced repeater. Allows custom delays up to several seconds without losing signal strength.
+#### 📡 7. Space (Wireless) Category (`/gate space <type>`)
+- **SENDER** 🟪: Bluetooth transmitter. Reads text/numbers or standard Redstone signals from the back and broadcasts them wirelessly to a specific channel.
+- **RECEIVER** 🟪: Bluetooth receiver. Tunes into a channel, captures the transmitted data string or Redstone signal, and outputs it forward.
+- **SENSOR** 🟥: Motion radar. Scans a configured radius and outputs a Redstone signal if a living entity is detected nearby.
+
+#### ⏱️ 8. Time Category (`/gate time <type>`)
+- **CLOCK** 🟢: Gated clock. Toggles its output only when the back input is actively powered.
+- **REPEATER** 🟡: Advanced repeater. Allows custom delays up to several seconds without losing signal strength.
 
 ---
 
@@ -120,7 +132,7 @@ All blocks have a predefined output direction (Front) based on where you look du
 ---
 
 ### 🛠️ Other Projects
-🛡️ **[AstraLogin](https://modrinth.com/plugin/astralogin)** - Check out my other plugin! It's a modern, secure, and lightweight login system featuring Bcrypt hashing and advanced player protection.
+- 🛡️ **[AstraLogin](https://modrinth.com/plugin/astralogin)** — A comprehensive server security and authentication system designed to protect modern Minecraft servers. Featuring advanced login protection, multiple CAPTCHA verification modes, Premium Login, Anti-MultiAccount mechanisms, Two-Factor Authentication (2FA), suspicious activity detection, brute-force protection, and secure password hashing with **BCrypt and Argon2id** — alongside many other security features. 🔐⚡
 
 ---
 
